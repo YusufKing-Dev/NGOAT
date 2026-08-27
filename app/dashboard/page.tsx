@@ -31,12 +31,18 @@ export default function DashboardPage() {
   }
 
   const wageringLeft = Math.max(data.wageringRequired - data.wageringProgress, 0);
+  const NGC_PER_USDT = 2000;
+  const usdtValue = data.balance / NGC_PER_USDT;
 
   return (
     <div className="pt-6 space-y-4">
       <div className="card">
         <p className="text-sm text-muted uppercase tracking-wide mb-1">NGOAT Balance</p>
         <p className="scoreboard text-4xl text-brand">{data.balance.toLocaleString()} NGC</p>
+        <p className="text-sm text-muted mt-1">
+          ≈ ${usdtValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+          USDT
+        </p>
         {wageringLeft > 0 && (
           <p className="text-xs text-muted mt-2">
             Wager {wageringLeft.toLocaleString()} more NGC to unlock withdrawals on your free
