@@ -1,0 +1,15 @@
+name: NGOAT settle results
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/settle-results
+        run: |
+          curl -sf -X GET "${{ secrets.NGOAT_URL }}/api/cron/settle-results" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

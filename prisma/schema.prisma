@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum LedgerType {
+  SIGNUP_BONUS
+  DEPOSIT
+  PREDICTION_STAKE
+  PREDICTION_REWARD
+  REDEMPTION
+  ADMIN_ADJUSTMENT
+  REFUND
+}
+
+enum LedgerStatus {
+  PENDING
+  CONFIRMED
+  REVERSED
+}
+
+enum DepositStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PAID
+  REJECTED
+}
+
+enum MatchStatus {
+  UPCOMING
+  LOCKED
+  SETTLED
+  CANCELLED
+}
+
+enum PredictionPick {
+  HOME
+  DRAW
+  AWAY
+}
+
+enum PredictionStatus {
+  PENDING
+  WON
+  LOST
+  VOID
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(USER)
+  suspended    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  // Signup-bonus anti-abuse: bonus-derived credits are locked from
+  // withdrawal until the user has staked (wagered) this much in total.
+  // Set once at signup: bonusWageringRequired = bonus amount * multiplier.
+  // Incremented on every PREDICTION_STAKE by the stake amount.
+  bonusWageringRequired Int @default(0)
+  bonusWageringProgress Int @default(0)
+
+  // One free bonus per account. Does not by itself stop multi-account
+  // abuse — that requires an identity/device check, which is out of
+  // scope for the MVP but should be added before this is public.
+  signupBonusIssued Boolean @default(false)
+
+  ledgerEntries LedgerEntry[]
+  deposits      DepositRequest[]
+  withdrawals   WithdrawalRequest[]
+  predictions   Prediction[]
+}
+
+// Source of truth for balances. Never store/edit a raw balance column —
+// always derive it by summing CONFIRMED entries for a user.
+model LedgerEntry {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  type        LedgerType
+  amount      Int          // positive = credit, negative = debit (in NGOAT Credits)
+  status      LedgerStatus @default(CONFIRMED)
+  reference   String       @unique // e.g. dep_xxx, pred_xxx, wd_xxx
+  description String?
+  createdAt   DateTime     @default(now())
+
+  @@index([userId])
+}
+
+model DepositRequest {
+  id               String        @id @default(cuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id])
+  usdtAmount       Float
+  network          String
+  txHash           String
+  payoutWalletUsed String
+  creditsToIssue   Int
+  status           DepositStatus @default(PENDING)
+  adminNote        String?
+  createdAt        DateTime      @default(now())
+  reviewedAt       DateTime?
+}
+
+model WithdrawalRequest {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id])
+  usdtAmount    Float
+  network       String
+  walletAddress String
+  status        WithdrawalStatus  @default(PENDING)
+  payoutTxHash  String?
+  createdAt     DateTime          @default(now())
+  reviewedAt    DateTime?
+}
+
+model Match {
+  id                 String      @id @default(cuid())
+  homeTeam           String
+  awayTeam           String
+  competition        String?
+  kickoff            DateTime
+  predictionDeadline DateTime
+  entryCredits       Int         @default(1000)
+  rewardCredits      Int         @default(1800)
+  status             MatchStatus @default(UPCOMING)
+  finalHomeScore     Int?
+  finalAwayScore     Int?
+  createdAt          DateTime    @default(now())
+
+  // Set only for matches imported automatically from football-data.org.
+  // Matches an admin creates by hand are left null and are NEVER
+  // auto-settled — only matches we auto-imported get auto-settled,
+  // so a manually created match always needs a human to close it out.
+  externalId  String? @unique
+  autoSettled Boolean @default(false)
+
+  predictions Prediction[]
+}
+
+model Prediction {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  matchId   String
+  match     Match            @relation(fields: [matchId], references: [id])
+  pick      PredictionPick
+  stake     Int
+  status    PredictionStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, matchId]) // one prediction per user per match for MVP
+}
+
+model PlatformConfig {
+  id                String  @id @default("singleton")
+  usdtToCreditsRate Int     @default(2000) // 1 USDT = this many NGC (0.0005 USDT = 1 NGC)
+  depositWallet     String?
+  depositNetwork    String?
+  minDeposit        Float   @default(5)
+  maxDeposit        Float   @default(1000)
+  minRedemption     Int     @default(1000)
+  maxRedemption     Int     @default(1000000)
+
+  // Free signup bonus + betting limits (all in NGC)
+  signupBonusCredits      Int @default(20000) // = $10 at 2000 NGC/USDT
+  bonusWageringMultiplier Int @default(3)     // must wager bonus x3 before it's withdrawable
+
+  // Predictions: user picks any stake amount >= minBetCredits (no cap).
+  // Reward is stake * rewardMultiplier, so payout scales with what was
+  // actually risked instead of a flat amount per match.
+  minBetCredits   Int   @default(5000) // = $2.50 at 2000 NGC/USDT
+  rewardMultiplier Float @default(1.8)
+}

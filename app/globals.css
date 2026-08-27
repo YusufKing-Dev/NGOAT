@@ -1,0 +1,169 @@
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-pitch text-ink font-body;
+}
+
+.scoreboard {
+  font-variant-numeric: tabular-nums;
+  @apply font-display tracking-wide;
+}
+
+.btn-primary {
+  @apply bg-brand text-white font-semibold rounded-lg px-5 py-3 active:scale-[0.98] transition;
+}
+
+.btn-secondary {
+  @apply bg-surface2 text-ink font-medium rounded-lg px-5 py-3 border border-white/10 active:scale-[0.98] transition;
+}
+
+/*
+ * Dark neumorphism: the literal Uiverse card (light #e0e0e0 bg with a
+ * white highlight + gray shadow) is a light-theme pattern that would
+ * clash with the app's dark background — so the COLORS are adapted to
+ * the pitch/surface palette while keeping the same soft-embossed,
+ * heavily-rounded feel. Dimensions stay responsive (the source card
+ * was a fixed 190x254px tile; our cards hold variable amounts of
+ * content, so width/height flex instead of being fixed).
+ */
+.card {
+  @apply p-5;
+  background: #121B2E;
+  border-radius: 28px;
+  box-shadow: 10px 10px 22px rgba(0, 0, 0, 0.55), -8px -8px 20px rgba(255, 255, 255, 0.03);
+}
+
+.input {
+  @apply w-full bg-surface2 border border-white/10 rounded-lg px-4 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/60;
+}
+
+/* ===== Auth form (login/register) — adapted from the Uiverse form,
+   recolored for dark theme instead of the original light bg-light/bg-dark ===== */
+.auth-form {
+  --clr: #008751;
+  --clr-alpha: rgba(0, 135, 81, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+  width: 100%;
+}
+.auth-form .input-span {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.auth-form .form-label {
+  align-self: flex-start;
+  color: var(--clr);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.auth-form input {
+  border-radius: 0.6rem;
+  padding: 0.85rem 0.9rem;
+  width: 100%;
+  border: none;
+  background-color: var(--clr-alpha);
+  outline: 2px solid #1A2740;
+  color: #F4F6F8;
+  transition: outline-color 0.2s;
+}
+.auth-form input::placeholder {
+  color: #8B99B0;
+}
+.auth-form input:focus {
+  outline: 2px solid var(--clr);
+}
+.auth-form .submit {
+  padding: 0.9rem 0.75rem;
+  width: 100%;
+  border-radius: 3rem;
+  background-color: #1A2740;
+  color: #F4F6F8;
+  border: none;
+  cursor: pointer;
+  transition: all 300ms;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.auth-form .submit:hover:not(:disabled) {
+  background-color: var(--clr);
+  color: #ffffff;
+}
+.auth-form .submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Social icons — isometric hover cards from Uiverse, recolored
+   from orange to Nigerian green ===== */
+.social-card ul {
+  padding: 0;
+  margin: 0;
+  display: flex;
+  list-style: none;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+}
+.social-card li {
+  position: relative;
+  cursor: pointer;
+}
+.social-card .iso-pro {
+  transition: 0.5s;
+}
+.social-card .svg-wrap {
+  transition: all 0.3s;
+  padding: 0.75rem;
+  height: 44px;
+  width: 44px;
+  border-radius: 100%;
+  color: #008751;
+  fill: currentColor;
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.15),
+    inset 0 0 5px rgba(255, 255, 255, 0.25), 0 5px 5px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.social-card .tooltip {
+  opacity: 0;
+  border-radius: 5px;
+  padding: 4px 8px;
+  transition: all 0.3s;
+  color: #00A85C;
+  background-color: rgba(0, 135, 81, 0.15);
+  position: absolute;
+  top: -6px;
+  left: 100%;
+  white-space: nowrap;
+  z-index: 20;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.social-card .iso-pro:hover .svg-wrap {
+  transform: translate(5px, -5px);
+}
+.social-card .iso-pro:hover .tooltip {
+  opacity: 1;
+  transform: translate(20px, -2px) skew(-5deg);
+}
+.social-card .pulse-ring {
+  opacity: 0;
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.2),
+    inset 0 0 5px rgba(255, 255, 255, 0.3), 0 5px 5px rgba(0, 0, 0, 0.164);
+  transition: all 0.3s;
+}
+.social-card .iso-pro:hover .pulse-ring-1 { opacity: 0.2; }
+.social-card .iso-pro:hover .pulse-ring-2 { opacity: 0.4; transform: translate(4px, -4px); }
+.social-card .iso-pro:hover .pulse-ring-3 { opacity: 0.6; transform: translate(8px, -8px); }
