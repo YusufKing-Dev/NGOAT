@@ -75,7 +75,7 @@ export default function PredictPage() {
             {m.competition ?? "Friendly"} · {new Date(m.kickoff).toLocaleString()}
           </p>
           <p className="font-semibold mb-3">
-            {m.homeTeam} vs {m.awayTeam}
+            {m.homeTeam} <span className="text-brand">vs</span> {m.awayTeam}
           </p>
 
           <label className="text-xs text-muted">Stake (NGC)</label>
@@ -96,21 +96,21 @@ export default function PredictPage() {
               onClick={() => predict(m.id, "HOME")}
               className="btn-secondary text-sm py-2"
             >
-              {m.homeTeam} Win
+              {m.homeTeam} <span className="text-brand">Win</span>
             </button>
             <button
               disabled={busyId === m.id}
               onClick={() => predict(m.id, "DRAW")}
               className="btn-secondary text-sm py-2"
             >
-              Draw
+              <span className="text-brand">Draw</span>
             </button>
             <button
               disabled={busyId === m.id}
               onClick={() => predict(m.id, "AWAY")}
               className="btn-secondary text-sm py-2"
             >
-              {m.awayTeam} Win
+              {m.awayTeam} <span className="text-brand">Win</span>
             </button>
           </div>
         </div>

@@ -8,7 +8,7 @@ export default function PredictionsPage() {
       </Link>
 
       <p className="text-brand text-sm font-semibold tracking-widest uppercase mb-2 mt-4">
-        Free 20,000 NGC to start
+        Use case — Free 20,000 NGC to start
       </p>
       <h1 className="scoreboard text-5xl leading-none mb-3">
         THE GOAT OF
@@ -31,7 +31,7 @@ export default function PredictionsPage() {
       </div>
 
       <div className="card mb-4">
-        <h2 className="text-sm text-muted uppercase tracking-wide mb-3">How it works</h2>
+        <h2 className="text-sm text-brand uppercase tracking-wide mb-3">How it works</h2>
         <ol className="space-y-2 text-sm">
           <li>1. Create an account — get 20,000 NGC free (worth $10)</li>
           <li>2. Predict football match outcomes, minimum 5,000 NGC per bet</li>
@@ -41,7 +41,7 @@ export default function PredictionsPage() {
       </div>
 
       <div className="card">
-        <h2 className="text-sm text-muted uppercase tracking-wide mb-2">NGOAT Credits</h2>
+        <h2 className="text-sm text-brand uppercase tracking-wide mb-2">NGOAT Credits</h2>
         <p className="text-sm text-muted">
           NGC are internal platform credits (2,000 NGC = 1 USDT) used inside this use case. They
           are separate from the $NGOAT token itself.

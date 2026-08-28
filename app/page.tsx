@@ -108,16 +108,17 @@ export default function HomePage() {
         <p className="text-brand text-sm font-semibold tracking-widest uppercase mb-2">
           $NGOAT on Solana
         </p>
-        <h1 className="scoreboard text-5xl leading-none mb-3">
-          NGOAT —
+        <h1 className="scoreboard text-3xl leading-tight mb-3">
+          NGOAT
           <br />
-          THE REAL
-          <br />
-          GOAT 🐐
+          THE REAL GOAT 🐐
         </h1>
-        <p className="text-muted mb-6">
-          Everyone knows the GOAT. Nigeria has its own — NGOAT. Meme culture meets football,
-          entertainment, and community-driven utility.
+        <p className="text-blue-400 mb-6">
+          Everyone knows the GOAT.
+          <br />
+          Nigeria has its own — NGOAT.
+          <br />
+          Meme culture meets football, entertainment, and community-driven utility.
         </p>
         <div className="flex flex-col gap-3">
           <Link href="/predictions" className="btn-primary">
@@ -135,7 +136,7 @@ export default function HomePage() {
       </section>
 
       {/* ABOUT */}
-      <section className="card">
+      <section className="card text-center">
         <h2 className="text-sm text-muted uppercase tracking-wide mb-3">About NGOAT</h2>
         <div className="text-sm leading-relaxed space-y-3">
           <p>
@@ -181,9 +182,7 @@ export default function HomePage() {
           {ALLOCATION.map((row) => (
             <div key={row.label} className="flex justify-between">
               <span className="text-muted">{row.label}</span>
-              <span>
-                {row.pct} <span className="text-muted">({row.amount})</span>
-              </span>
+              <span>{row.pct}</span>
             </div>
           ))}
         </div>
@@ -195,14 +194,16 @@ export default function HomePage() {
         <div className="space-y-3">
           <Link href="/predictions" className="card block hover:opacity-90 transition">
             <p className="text-xs text-brand uppercase tracking-wide mb-1">Live now</p>
-            <h3 className="font-semibold mb-1">🐐⚽ Football Predictions</h3>
+            <h3 className="font-semibold mb-1 text-ink">🐐⚽ Football Predictions</h3>
             <p className="text-sm text-muted">
               Predict match outcomes, compete on the leaderboard, redeem winnings.
             </p>
           </Link>
-          <div className="card opacity-60">
-            <p className="text-xs text-muted uppercase tracking-wide mb-1">Coming — Phase 4</p>
-            <h3 className="font-semibold mb-1">More prediction markets</h3>
+          <div className="card">
+            <p className="text-xs text-brand uppercase tracking-wide mb-1">
+              Monthly staking loading.....
+            </p>
+            <h3 className="font-semibold mb-1 text-ink">Stake to earn more</h3>
             <p className="text-sm text-muted">
               Additional competitions and ecosystem utilities as NGOAT expands.
             </p>
