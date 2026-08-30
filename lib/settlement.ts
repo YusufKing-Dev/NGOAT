@@ -1,10 +1,74 @@
 import { prisma } from "./prisma";
 import { addLedgerEntry } from "./ledger";
+import { PredictionStatus } from "@prisma/client";
 
 /**
- * Settles a match: resolves every prediction against the final score and
- * pays winners via the ledger. Used both by the admin "Settle" button
- * (auto: false) and by the automated results-polling cron (auto: true).
+ * Re-evaluates a slip after one of its legs changes. Called after every
+ * leg update from settleMatch/cancelMatch — a slip may span matches that
+ * finish at different times, so it can take several calls before a slip
+ * actually resolves.
+ *
+ * Rules:
+ * - Any leg LOST -> whole slip LOST, no payout (accumulator: one loss
+ *   loses the slip).
+ * - Any leg still PENDING -> wait, do nothing yet.
+ * - Otherwise every leg is WON or VOID:
+ *     - If every leg is VOID (all matches in the slip got cancelled),
+ *       refund the full stake — there was never a valid bet left.
+ *     - Otherwise, reward = stake x rewardMultiplier ^ (number of WON
+ *       legs). VOID legs are dropped from the requirement AND from the
+ *       multiplier, same as a standard bookmaker accumulator.
+ */
+async function checkSlipCompletion(slipId: string) {
+  const slip = await prisma.predictionSlip.findUnique({
+    where: { id: slipId },
+    include: { legs: true },
+  });
+  if (!slip || slip.status !== "PENDING") return;
+
+  if (slip.legs.some((l) => l.status === "LOST")) {
+    await prisma.predictionSlip.update({ where: { id: slip.id }, data: { status: "LOST" } });
+    return;
+  }
+  if (slip.legs.some((l) => l.status === "PENDING")) return;
+
+  const wonLegs = slip.legs.filter((l) => l.status === "WON").length;
+
+  if (wonLegs === 0) {
+    // Every leg voided — nothing left to grade. Refund the stake.
+    await addLedgerEntry({
+      userId: slip.userId,
+      type: "REFUND",
+      amount: slip.stake,
+      description: "Refund: all matches in slip cancelled",
+      referencePrefix: "rfd",
+    });
+    await prisma.predictionSlip.update({ where: { id: slip.id }, data: { status: "VOID" } });
+    return;
+  }
+
+  const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
+  const multiplier = config?.rewardMultiplier ?? 1.8;
+  const reward = Math.round(slip.stake * Math.pow(multiplier, wonLegs));
+
+  await addLedgerEntry({
+    userId: slip.userId,
+    type: "PREDICTION_REWARD",
+    amount: reward,
+    description: `Accumulator win (${wonLegs} legs)`,
+    referencePrefix: "rwd",
+  });
+  await prisma.predictionSlip.update({
+    where: { id: slip.id },
+    data: { status: "WON", reward },
+  });
+}
+
+/**
+ * Settles a match: resolves every leg (Prediction) tied to it against
+ * the final score, then re-checks every slip those legs belong to.
+ * Used both by the admin "Settle" button (auto: false) and the
+ * automated results-polling cron (auto: true).
  */
 export async function settleMatch(
   matchId: string,
@@ -24,28 +88,15 @@ export async function settleMatch(
   const outcome =
     finalHomeScore > finalAwayScore ? "HOME" : finalHomeScore < finalAwayScore ? "AWAY" : "DRAW";
 
-  const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-  const rewardMultiplier = config?.rewardMultiplier ?? 1.8;
+  const affectedSlipIds = new Set<string>();
 
-  for (const prediction of match.predictions) {
-    const won = prediction.pick === outcome;
+  for (const leg of match.predictions) {
+    const won = leg.pick === outcome;
     await prisma.prediction.update({
-      where: { id: prediction.id },
-      data: { status: won ? "WON" : "LOST" },
+      where: { id: leg.id },
+      data: { status: won ? PredictionStatus.WON : PredictionStatus.LOST },
     });
-    if (won) {
-      // Reward scales with what this user actually staked, not a flat
-      // per-match amount — otherwise a 5,000 NGC stake and a 50,000 NGC
-      // stake would pay the same, which isn't fair to bigger stakers.
-      const reward = Math.round(prediction.stake * rewardMultiplier);
-      await addLedgerEntry({
-        userId: prediction.userId,
-        type: "PREDICTION_REWARD",
-        amount: reward,
-        description: `Reward: ${match.homeTeam} vs ${match.awayTeam}`,
-        referencePrefix: "rwd",
-      });
-    }
+    affectedSlipIds.add(leg.slipId);
   }
 
   await prisma.match.update({
@@ -58,13 +109,17 @@ export async function settleMatch(
     },
   });
 
-  return { outcome, settledCount: match.predictions.length };
+  for (const slipId of affectedSlipIds) {
+    await checkSlipCompletion(slipId);
+  }
+
+  return { outcome, legsResolved: match.predictions.length, slipsChecked: affectedSlipIds.size };
 }
 
 /**
- * Cancels a match (postponed/abandoned per the data provider) and refunds
- * every stake. Never silently loses user funds when a real-world match
- * doesn't happen as scheduled.
+ * Cancels a match (postponed/abandoned per the data provider). Every
+ * leg on this match becomes VOID; slips containing it get re-checked —
+ * a void leg is dropped from the slip rather than failing it outright.
  */
 export async function cancelMatch(matchId: string) {
   const match = await prisma.match.findUnique({
@@ -76,21 +131,21 @@ export async function cancelMatch(matchId: string) {
     throw new Error("ALREADY_FINALIZED");
   }
 
-  for (const prediction of match.predictions) {
+  const affectedSlipIds = new Set<string>();
+
+  for (const leg of match.predictions) {
     await prisma.prediction.update({
-      where: { id: prediction.id },
-      data: { status: "VOID" },
+      where: { id: leg.id },
+      data: { status: PredictionStatus.VOID },
     });
-    await addLedgerEntry({
-      userId: prediction.userId,
-      type: "REFUND",
-      amount: prediction.stake,
-      description: `Refund (match cancelled): ${match.homeTeam} vs ${match.awayTeam}`,
-      referencePrefix: "rfd",
-    });
+    affectedSlipIds.add(leg.slipId);
   }
 
   await prisma.match.update({ where: { id: match.id }, data: { status: "CANCELLED" } });
 
-  return { refundedCount: match.predictions.length };
+  for (const slipId of affectedSlipIds) {
+    await checkSlipCompletion(slipId);
+  }
+
+  return { voidedLegs: match.predictions.length, slipsChecked: affectedSlipIds.size };
 }

@@ -8,6 +8,7 @@ type Deposit = {
   txHash: string;
   creditsToIssue: number;
   status: string;
+  autoVerified: boolean;
   user: { username: string; email: string };
 };
 
@@ -116,6 +117,9 @@ export default function AdminPage() {
               <p>
                 {d.user.username} · {d.usdtAmount} USDT ({d.network}) →{" "}
                 {d.creditsToIssue.toLocaleString()} NGC
+                {d.autoVerified && (
+                  <span className="ml-2 text-xs text-win">● on-chain</span>
+                )}
               </p>
               <p className="text-xs text-muted break-all">{d.txHash}</p>
               <p className="text-xs">

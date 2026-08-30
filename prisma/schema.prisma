@@ -20,6 +20,8 @@ enum LedgerType {
   REDEMPTION
   ADMIN_ADJUSTMENT
   REFUND
+  STAKE_LOCK
+  STAKE_RELEASE
 }
 
 enum LedgerStatus {
@@ -60,6 +62,18 @@ enum PredictionStatus {
   VOID
 }
 
+enum StakeDuration {
+  THREE_MONTHS
+  SIX_MONTHS
+  ONE_YEAR
+}
+
+enum StakeStatus {
+  ACTIVE
+  MATURED
+  RELEASED
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -71,20 +85,24 @@ model User {
 
   // Signup-bonus anti-abuse: bonus-derived credits are locked from
   // withdrawal until the user has staked (wagered) this much in total.
-  // Set once at signup: bonusWageringRequired = bonus amount * multiplier.
-  // Incremented on every PREDICTION_STAKE by the stake amount.
   bonusWageringRequired Int @default(0)
   bonusWageringProgress Int @default(0)
 
-  // One free bonus per account. Does not by itself stop multi-account
-  // abuse — that requires an identity/device check, which is out of
-  // scope for the MVP but should be added before this is public.
+  // Permanent withdrawal floor: the free bonus can NEVER be withdrawn,
+  // even after the wagering requirement is met — only balance ABOVE
+  // this floor is ever eligible to leave as USDT. Set once, at the
+  // exact amount actually issued, so later config changes never
+  // retroactively affect an existing user's floor.
+  bonusFloor Int @default(0)
+
   signupBonusIssued Boolean @default(false)
 
-  ledgerEntries LedgerEntry[]
-  deposits      DepositRequest[]
-  withdrawals   WithdrawalRequest[]
-  predictions   Prediction[]
+  ledgerEntries   LedgerEntry[]
+  deposits        DepositRequest[]
+  withdrawals     WithdrawalRequest[]
+  predictions     Prediction[]
+  predictionSlips PredictionSlip[]
+  stakes          Stake[]
 }
 
 // Source of truth for balances. Never store/edit a raw balance column —
@@ -96,7 +114,7 @@ model LedgerEntry {
   type        LedgerType
   amount      Int          // positive = credit, negative = debit (in NGOAT Credits)
   status      LedgerStatus @default(CONFIRMED)
-  reference   String       @unique // e.g. dep_xxx, pred_xxx, wd_xxx
+  reference   String       @unique
   description String?
   createdAt   DateTime     @default(now())
 
@@ -109,25 +127,29 @@ model DepositRequest {
   user             User          @relation(fields: [userId], references: [id])
   usdtAmount       Float
   network          String
-  txHash           String
+  txHash           String        @unique // DB-level guard against ever crediting the same on-chain tx twice
   payoutWalletUsed String
   creditsToIssue   Int
   status           DepositStatus @default(PENDING)
   adminNote        String?
   createdAt        DateTime      @default(now())
   reviewedAt       DateTime?
+
+  // Set when this deposit came through the on-chain wallet-connect flow
+  // (auto-verified) rather than the manual tx-hash submission form.
+  autoVerified Boolean @default(false)
 }
 
 model WithdrawalRequest {
-  id            String            @id @default(cuid())
+  id            String           @id @default(cuid())
   userId        String
-  user          User              @relation(fields: [userId], references: [id])
+  user          User             @relation(fields: [userId], references: [id])
   usdtAmount    Float
   network       String
   walletAddress String
-  status        WithdrawalStatus  @default(PENDING)
+  status        WithdrawalStatus @default(PENDING)
   payoutTxHash  String?
-  createdAt     DateTime          @default(now())
+  createdAt     DateTime         @default(now())
   reviewedAt    DateTime?
 }
 
@@ -145,33 +167,66 @@ model Match {
   finalAwayScore     Int?
   createdAt          DateTime    @default(now())
 
-  // Set only for matches imported automatically from football-data.org.
-  // Matches an admin creates by hand are left null and are NEVER
-  // auto-settled — only matches we auto-imported get auto-settled,
-  // so a manually created match always needs a human to close it out.
   externalId  String? @unique
   autoSettled Boolean @default(false)
 
   predictions Prediction[]
 }
 
+// One leg of an accumulator slip. Every prediction now belongs to a
+// PredictionSlip — there is no more single-match, straight-bet flow.
 model Prediction {
   id        String           @id @default(cuid())
   userId    String
   user      User             @relation(fields: [userId], references: [id])
   matchId   String
   match     Match            @relation(fields: [matchId], references: [id])
+  slipId    String
+  slip      PredictionSlip   @relation(fields: [slipId], references: [id])
   pick      PredictionPick
-  stake     Int
+  stake     Int              // informational, mirrors slip.stake
   status    PredictionStatus @default(PENDING)
   createdAt DateTime         @default(now())
 
-  @@unique([userId, matchId]) // one prediction per user per match for MVP
+  @@unique([userId, matchId]) // can't pick the same match twice, ever
+}
+
+// An accumulator slip: minimum 3 matches, one stake for the whole slip,
+// ALL legs must win for it to pay out. Reward compounds per leg
+// (stake x rewardMultiplier ^ legCount) so more legs = more risk = more
+// reward, using the same base multiplier as before.
+model PredictionSlip {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  stake     Int
+  status    PredictionStatus @default(PENDING)
+  reward    Int? // set once settled, for the record
+  createdAt DateTime         @default(now())
+
+  legs Prediction[]
+}
+
+// NGC staking: lock NGC for a fixed term, grows 0.1%/day, released in
+// full (principal + growth) at maturity. No early withdrawal in this
+// version — locked funds stay locked until the term ends.
+model Stake {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  principal     Int
+  duration      StakeDuration
+  dailyRatePct  Float // e.g. 0.1 = 0.1%/day, snapshot at stake time
+  status        StakeStatus   @default(ACTIVE)
+  startedAt     DateTime      @default(now())
+  maturesAt     DateTime
+  releasedAt    DateTime?
+  releaseAmount Int? // principal + accrued growth, set at release
 }
 
 model PlatformConfig {
   id                String  @id @default("singleton")
-  usdtToCreditsRate Int     @default(2000) // 1 USDT = this many NGC (0.0005 USDT = 1 NGC)
+  usdtToCreditsRate Int     @default(2000) // 1 USDT = this many NGC
   depositWallet     String?
   depositNetwork    String?
   minDeposit        Float   @default(5)
@@ -179,13 +234,23 @@ model PlatformConfig {
   minRedemption     Int     @default(1000)
   maxRedemption     Int     @default(1000000)
 
-  // Free signup bonus + betting limits (all in NGC)
-  signupBonusCredits      Int @default(20000) // = $10 at 2000 NGC/USDT
-  bonusWageringMultiplier Int @default(3)     // must wager bonus x3 before it's withdrawable
+  signupBonusCredits      Int   @default(20000)
+  bonusWageringMultiplier Int   @default(3)
+  minBetCredits           Int   @default(5000)
+  rewardMultiplier        Float @default(1.8)
 
-  // Predictions: user picks any stake amount >= minBetCredits (no cap).
-  // Reward is stake * rewardMultiplier, so payout scales with what was
-  // actually risked instead of a flat amount per match.
-  minBetCredits   Int   @default(5000) // = $2.50 at 2000 NGC/USDT
-  rewardMultiplier Float @default(1.8)
+  // Accumulator predictions: every slip must have at least this many legs.
+  minSlipLegs Int @default(3)
+
+  // NGC staking
+  stakingMinCredits Int   @default(40000)
+  stakingDailyRatePct Float @default(0.1) // percent, e.g. 0.1 = 0.1%/day
+
+  // Daily withdrawal limits, in USDT
+  minWithdrawalUsdt    Float @default(5)
+  maxDailyWithdrawalUsdt Float @default(100)
+
+  // Solana on-chain deposit config (wallet-connect flow)
+  solanaUsdtMint    String? // USDT SPL-token mint address on Solana
+  solanaRpcEndpoint String? // e.g. an Alchemy/Helius RPC URL
 }

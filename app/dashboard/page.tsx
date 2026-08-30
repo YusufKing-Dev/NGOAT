@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation";
 
 type MeData = {
   balance: number;
-  wageringRequired: number;
-  wageringProgress: number;
+  withdrawableBalance: number;
   stats: { total: number; wins: number; losses: number; winPct: number };
   recent: { id: string; type: string; amount: number; description: string | null; createdAt: string }[];
 };
@@ -30,9 +29,9 @@ export default function DashboardPage() {
     return <p className="text-muted pt-10 text-center">Loading…</p>;
   }
 
-  const wageringLeft = Math.max(data.wageringRequired - data.wageringProgress, 0);
   const NGC_PER_USDT = 2000;
   const usdtValue = data.balance / NGC_PER_USDT;
+  const withdrawableUsdt = data.withdrawableBalance / NGC_PER_USDT;
 
   return (
     <div className="pt-6 space-y-4">
@@ -43,12 +42,23 @@ export default function DashboardPage() {
           ≈ ${usdtValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
           USDT
         </p>
-        {wageringLeft > 0 && (
-          <p className="text-xs text-muted mt-2">
-            Wager {wageringLeft.toLocaleString()} more NGC to unlock withdrawals on your free
-            bonus.
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <p className="text-xs text-muted uppercase tracking-wide">Withdrawable</p>
+          <p className="text-lg font-semibold">
+            {data.withdrawableBalance.toLocaleString()} NGC{" "}
+            <span className="text-muted text-sm font-normal">
+              (≈ $
+              {withdrawableUsdt.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+              )
+            </span>
           </p>
-        )}
+          <p className="text-xs text-muted mt-1">
+            Your free signup bonus is never withdrawable — only balance earned on top of it.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -64,12 +74,15 @@ export default function DashboardPage() {
         <Link href="/leaderboard" className="btn-secondary text-center">
           LEADERBOARD
         </Link>
+        <Link href="/stake" className="btn-secondary text-center col-span-2">
+          STAKE NGC HERE
+        </Link>
       </div>
 
       <div className="card">
         <p className="text-sm text-muted uppercase tracking-wide mb-3">Account Stats</p>
         <div className="grid grid-cols-2 gap-y-2 text-sm">
-          <span className="text-muted">Total predictions</span>
+          <span className="text-muted">Total accumulators</span>
           <span className="text-right">{data.stats.total}</span>
           <span className="text-muted">Wins</span>
           <span className="text-right text-win">{data.stats.wins}</span>

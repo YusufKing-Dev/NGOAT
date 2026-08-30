@@ -10,13 +10,17 @@ type Match = {
   predictionDeadline: string;
 };
 
+type Pick = "HOME" | "DRAW" | "AWAY";
+
 const MIN_STAKE = 5000;
+const MIN_LEGS = 3;
 
 export default function PredictPage() {
   const [matches, setMatches] = useState<Match[]>([]);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [picks, setPicks] = useState<Record<string, Pick>>({});
+  const [stake, setStake] = useState(MIN_STAKE);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [stakes, setStakes] = useState<Record<string, number>>({});
 
   function load() {
     fetch("/api/matches")
@@ -26,95 +30,136 @@ export default function PredictPage() {
 
   useEffect(load, []);
 
-  function stakeFor(matchId: string) {
-    return stakes[matchId] ?? MIN_STAKE;
+  function togglePick(matchId: string, pick: Pick) {
+    setPicks((prev) => {
+      const next = { ...prev };
+      if (next[matchId] === pick) {
+        delete next[matchId]; // tap the same pick again to deselect
+      } else {
+        next[matchId] = pick;
+      }
+      return next;
+    });
   }
 
-  async function predict(matchId: string, pick: "HOME" | "DRAW" | "AWAY") {
-    const amount = stakeFor(matchId);
-    if (amount < MIN_STAKE) {
+  const legCount = Object.keys(picks).length;
+
+  async function submitSlip() {
+    if (legCount < MIN_LEGS) {
+      setMessage(`Pick at least ${MIN_LEGS} matches to build an accumulator.`);
+      return;
+    }
+    if (stake < MIN_STAKE) {
       setMessage(`Minimum stake is ${MIN_STAKE.toLocaleString()} NGC.`);
       return;
     }
-    if (!confirm(`Use ${amount.toLocaleString()} NGC on this prediction?`)) return;
+    const legs = Object.entries(picks).map(([matchId, pick]) => ({ matchId, pick }));
+    if (
+      !confirm(
+        `Use ${stake.toLocaleString()} NGC across ${legCount} matches? All ${legCount} picks must win to get paid.`
+      )
+    )
+      return;
 
-    setBusyId(matchId);
+    setBusy(true);
     setMessage(null);
     const res = await fetch("/api/predictions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchId, pick, amount }),
+      body: JSON.stringify({ legs, amount: stake }),
     });
     const data = await res.json();
-    setBusyId(null);
+    setBusy(false);
     if (!res.ok) {
-      if (data.error === "BELOW_MIN_STAKE") {
+      if (data.error === "TOO_FEW_LEGS") {
+        setMessage(`Pick at least ${data.minLegs} matches.`);
+      } else if (data.error === "BELOW_MIN_STAKE") {
         setMessage(`Minimum stake is ${data.minBet?.toLocaleString()} NGC.`);
       } else if (data.error === "INSUFFICIENT_BALANCE") {
         setMessage("Not enough NGC.");
+      } else if (data.error === "ALREADY_PREDICTED_MATCH") {
+        setMessage("You've already picked one of these matches.");
       } else {
-        setMessage("Couldn't submit prediction.");
+        setMessage("Couldn't submit accumulator.");
       }
       return;
     }
-    setMessage("Prediction locked in!");
+    setMessage("Accumulator placed!");
+    setPicks({});
     load();
   }
 
   return (
-    <div className="pt-6 space-y-4">
+    <div className="pt-6 space-y-4 pb-28">
       <h1 className="scoreboard text-3xl">FOOTBALL PREDICTIONS</h1>
-      <p className="text-xs text-muted">Minimum stake: {MIN_STAKE.toLocaleString()} NGC</p>
+      <p className="text-xs text-muted">
+        Accumulator only — pick at least {MIN_LEGS} matches, minimum stake{" "}
+        {MIN_STAKE.toLocaleString()} NGC. Every pick must win to get paid.
+      </p>
       {message && <p className="text-sm text-brand">{message}</p>}
 
       {matches.length === 0 && <p className="text-muted text-sm">No upcoming matches right now.</p>}
 
-      {matches.map((m) => (
-        <div key={m.id} className="card">
-          <p className="text-xs text-muted mb-1">
-            {m.competition ?? "Friendly"} · {new Date(m.kickoff).toLocaleString()}
-          </p>
-          <p className="font-semibold mb-3">
-            {m.homeTeam} <span className="text-brand">vs</span> {m.awayTeam}
-          </p>
+      {matches.map((m) => {
+        const selected = picks[m.id];
+        return (
+          <div key={m.id} className="card">
+            <p className="text-xs text-muted mb-1">
+              {m.competition ?? "Friendly"} · {new Date(m.kickoff).toLocaleString()}
+            </p>
+            <p className="font-semibold mb-3">
+              {m.homeTeam} <span className="text-brand">vs</span> {m.awayTeam}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => togglePick(m.id, "HOME")}
+                className={selected === "HOME" ? "btn-primary text-sm py-2" : "btn-secondary text-sm py-2"}
+              >
+                {m.homeTeam} <span className="text-brand">Win</span>
+              </button>
+              <button
+                onClick={() => togglePick(m.id, "DRAW")}
+                className={selected === "DRAW" ? "btn-primary text-sm py-2" : "btn-secondary text-sm py-2"}
+              >
+                <span className="text-brand">Draw</span>
+              </button>
+              <button
+                onClick={() => togglePick(m.id, "AWAY")}
+                className={selected === "AWAY" ? "btn-primary text-sm py-2" : "btn-secondary text-sm py-2"}
+              >
+                {m.awayTeam} <span className="text-brand">Win</span>
+              </button>
+            </div>
+          </div>
+        );
+      })}
 
-          <label className="text-xs text-muted">Stake (NGC)</label>
+      {/* Sticky slip builder */}
+      <div className="fixed bottom-0 left-0 right-0 bg-surface border-t border-white/10 p-4">
+        <div className="max-w-md mx-auto space-y-2">
+          <div className="flex justify-between text-xs text-muted">
+            <span>
+              {legCount} match{legCount === 1 ? "" : "es"} selected (min {MIN_LEGS})
+            </span>
+          </div>
           <input
             type="number"
             min={MIN_STAKE}
             step={500}
-            className="input mt-1 mb-3"
-            value={stakeFor(m.id)}
-            onChange={(e) =>
-              setStakes({ ...stakes, [m.id]: Math.round(Number(e.target.value)) })
-            }
+            value={stake}
+            onChange={(e) => setStake(Math.round(Number(e.target.value)))}
+            className="input"
+            placeholder="Stake (NGC)"
           />
-
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              disabled={busyId === m.id}
-              onClick={() => predict(m.id, "HOME")}
-              className="btn-secondary text-sm py-2"
-            >
-              {m.homeTeam} <span className="text-brand">Win</span>
-            </button>
-            <button
-              disabled={busyId === m.id}
-              onClick={() => predict(m.id, "DRAW")}
-              className="btn-secondary text-sm py-2"
-            >
-              <span className="text-brand">Draw</span>
-            </button>
-            <button
-              disabled={busyId === m.id}
-              onClick={() => predict(m.id, "AWAY")}
-              className="btn-secondary text-sm py-2"
-            >
-              {m.awayTeam} <span className="text-brand">Win</span>
-            </button>
-          </div>
+          <button
+            onClick={submitSlip}
+            disabled={busy || legCount < MIN_LEGS}
+            className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {busy ? "Placing…" : `Place Accumulator (${legCount})`}
+          </button>
         </div>
-      ))}
+      </div>
     </div>
   );
 }

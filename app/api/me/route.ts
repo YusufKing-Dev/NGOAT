@@ -1,31 +1,32 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getBalance } from "@/lib/ledger";
+import { getBalance, getWithdrawableBalance } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
 
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
-  const [dbUser, balance, recent, predictions] = await Promise.all([
-    prisma.user.findUnique({ where: { id: user.id } }),
+  const [balance, withdrawable, recent, slips] = await Promise.all([
     getBalance(user.id),
+    getWithdrawableBalance(user.id),
     prisma.ledgerEntry.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
-    prisma.prediction.findMany({ where: { userId: user.id } }),
+    // A "prediction" from the user's point of view is a whole slip
+    // (accumulator), not an individual match leg.
+    prisma.predictionSlip.findMany({ where: { userId: user.id } }),
   ]);
 
-  const wins = predictions.filter((p) => p.status === "WON").length;
-  const losses = predictions.filter((p) => p.status === "LOST").length;
-  const total = predictions.length;
+  const wins = slips.filter((s) => s.status === "WON").length;
+  const losses = slips.filter((s) => s.status === "LOST").length;
+  const total = slips.length;
 
   return NextResponse.json({
     balance,
-    wageringRequired: dbUser?.bonusWageringRequired ?? 0,
-    wageringProgress: dbUser?.bonusWageringProgress ?? 0,
+    withdrawableBalance: withdrawable,
     stats: {
       total,
       wins,

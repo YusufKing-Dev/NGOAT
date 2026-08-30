@@ -13,3 +13,7 @@ jobs:
         run: |
           curl -sf -X GET "${{ secrets.NGOAT_URL }}/api/cron/settle-results" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Call /api/cron/release-stakes
+        run: |
+          curl -sf -X GET "${{ secrets.NGOAT_URL }}/api/cron/release-stakes" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

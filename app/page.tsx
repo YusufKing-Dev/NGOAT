@@ -22,74 +22,76 @@ const ALLOCATION = [
 const ROADMAP = [
   {
     phase: "Phase 1",
-    title: "The Birth of NGOAT",
+    title: "Foundation — Now",
     items: [
-      "NGOAT branding & mascot creation",
-      "Official Telegram community",
-      "Social media growth",
-      "Whitepaper release",
-      "Community contests & giveaways",
-      "Token launch",
-      "Initial liquidity",
-      "DexScreener/DexTools visibility",
-      "Build a strong organic holder base",
+      "Finalize NGOAT brand, identity and ecosystem structure",
+      "Complete the NGOAT website",
+      "Launch NGOATcredit ($NGC)",
+      "Set up user registration and wallet/account system",
+      "Introduce the 20,000 NGC welcome reward",
+      "Establish official Telegram/community channels",
+      "Publish transparent information about NGC and the ecosystem",
     ],
   },
   {
     phase: "Phase 2",
-    title: "Build the Herd 🐐",
+    title: "NGC Ecosystem",
     items: [
-      "Aggressive community growth",
-      "Meme campaigns",
-      "Community raids & collaborations",
-      "Influencer/KOL partnerships",
-      "Holder competitions",
-      "Daily NGOAT reward game",
-      "Community ambassador program",
-      "CoinMarketCap & CoinGecko applications",
-      "Expand NGOAT's social presence",
+      "Enable USDT → NGC purchases",
+      "Enable NGC → USDT withdrawals",
+      "Launch NGC staking",
+      "Develop and launch the football prediction platform",
+      "Introduce community rewards and competitions",
+      "Monitor platform performance, security and user experience",
     ],
   },
   {
     phase: "Phase 3",
-    title: "NGOAT Utility",
+    title: "Community & Trust",
     items: [
-      "Launch NGOAT website/platform",
-      "User registration & personal dashboards",
-      "NGOAT football prediction system",
-      "NGOAT allocation/purchase system",
-      "Prediction history and results",
-      "Reward/redeem system",
-      "USDT withdrawal functionality",
-      "Community reward mechanisms",
+      "Grow the NGC user base organically",
+      "Build an active football/prediction community",
+      "Develop strategic partnerships",
+      "Expand NGC utility",
+      "Improve website, wallet and platform infrastructure",
+      "Publish regular development and transparency updates",
+      "Build sufficient liquidity/reserves to support the platform's promised functions",
     ],
   },
   {
     phase: "Phase 4",
-    title: "NGOAT Ecosystem",
+    title: "NGOAT Preparation",
     items: [
-      "Expand football prediction features",
-      "More competitions and prediction markets",
-      "Strategic partnerships",
-      "Community tournaments",
-      "NGOAT merchandise",
-      "Additional ecosystem utilities",
-      "Larger marketing campaigns",
-      "Explore CEX listings",
+      "Finalize $NGOAT tokenomics",
+      "Determine the relationship and conversion mechanism between NGC and NGOAT",
+      "Conduct security reviews/audits where appropriate",
+      "Prepare liquidity strategy",
+      "Establish treasury and community-reward policies",
+      "Prepare DEX launch infrastructure",
+      "Publish the complete NGC → NGOAT migration plan",
     ],
   },
   {
     phase: "Phase 5",
-    title: "The Real GOAT 🐐👑",
+    title: "$NGOAT Launch",
     items: [
-      "Global NGOAT community",
-      "Major brand partnerships",
-      "International marketing",
-      "Expansion beyond Nigeria",
-      "Continued platform development",
-      "Community governance initiatives",
-      "Major exchange opportunities",
-      "NGOAT becomes a recognizable African meme/utility brand",
+      "Launch NGOATCOIN ($NGOAT) on a suitable DEX",
+      "Provide verified contract and token information",
+      "Establish initial liquidity",
+      "Begin the official NGC migration process",
+      "Enable eligible NGC holders to transition into NGOAT according to the published conversion rules",
+    ],
+  },
+  {
+    phase: "Phase 6",
+    title: "NGOAT Ecosystem Expansion",
+    items: [
+      "Expand football prediction features",
+      "Develop additional staking/community utilities",
+      "Introduce partnerships and ecosystem integrations",
+      "Expand the NGOAT community internationally",
+      "Continue improving the website and user experience",
+      "Explore additional DEX/CEX opportunities when justified by adoption and readiness",
     ],
   },
 ];
@@ -98,7 +100,7 @@ export default function HomePage() {
   return (
     <div className="pt-8 space-y-10">
       {/* HERO */}
-      <section className="text-center">
+      <section className="text-center hero-bg px-4 py-8">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={LOGO_URL}
@@ -122,7 +124,7 @@ export default function HomePage() {
         </p>
         <div className="flex flex-col gap-3">
           <Link href="/predictions" className="btn-primary">
-            Launch App — Try Predictions
+            Join $NGOAT — Get 20,000 NGC Free
           </Link>
           <WhitepaperModal />
           <button

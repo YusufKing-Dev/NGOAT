@@ -39,9 +39,6 @@ export async function addLedgerEntry(params: {
  * condition (two requests spending the same credits) can't create
  * a negative balance. Use this for anything that removes credits
  * (predictions, redemptions).
- *
- * When type is PREDICTION_STAKE, this also advances the user's
- * bonusWageringProgress — staking is what "wagering" means here.
  */
 export async function debitWithCheck(params: {
   userId: string;
@@ -60,7 +57,7 @@ export async function debitWithCheck(params: {
       throw new Error("INSUFFICIENT_BALANCE");
     }
     const reference = `${params.referencePrefix}_${randomUUID().slice(0, 12)}`;
-    const entry = await tx.ledgerEntry.create({
+    return tx.ledgerEntry.create({
       data: {
         userId: params.userId,
         type: params.type,
@@ -69,28 +66,18 @@ export async function debitWithCheck(params: {
         reference,
       },
     });
-
-    if (params.type === LedgerType.PREDICTION_STAKE) {
-      await tx.user.update({
-        where: { id: params.userId },
-        data: { bonusWageringProgress: { increment: params.amount } },
-      });
-    }
-
-    return entry;
   });
 }
 
 /**
- * Issues the one-time free signup bonus and locks it behind a wagering
- * requirement (bonus amount x multiplier must be staked before ANY
- * withdrawal is allowed — see isWithdrawalEligible). Call this once,
- * right after a new user is created.
+ * Issues the one-time free signup bonus. Withdrawal eligibility is no
+ * longer gated by a wagering requirement — the only permanent
+ * restriction is bonusFloor (see getWithdrawableBalance below). Call
+ * this once, right after a new user is created.
  */
 export async function issueSignupBonus(userId: string) {
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
   const bonus = config?.signupBonusCredits ?? 20000;
-  const multiplier = config?.bonusWageringMultiplier ?? 3;
 
   return prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
@@ -113,20 +100,25 @@ export async function issueSignupBonus(userId: string) {
       where: { id: userId },
       data: {
         signupBonusIssued: true,
-        bonusWageringRequired: { increment: bonus * multiplier },
+        // Permanent floor — this exact amount can never be withdrawn.
+        bonusFloor: { increment: bonus },
       },
     });
   });
 }
 
 /**
- * A user can withdraw once they've wagered (staked) at least
- * bonusWageringRequired total. Users who never took the bonus have
- * bonusWageringRequired = 0 and are always eligible. Call this before
- * creating a WithdrawalRequest.
+ * The amount of a user's balance that's actually eligible to leave as
+ * USDT. The original signup bonus (bonusFloor) can NEVER be withdrawn
+ * — only balance above it (deposits, prediction winnings, staking
+ * payouts) is ever withdrawable. This is now the ONLY withdrawal
+ * restriction — there is no separate wagering-requirement gate.
  */
-export async function isWithdrawalEligible(userId: string): Promise<boolean> {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return false;
-  return user.bonusWageringProgress >= user.bonusWageringRequired;
+export async function getWithdrawableBalance(userId: string): Promise<number> {
+  const [balance, user] = await Promise.all([
+    getBalance(userId),
+    prisma.user.findUnique({ where: { id: userId } }),
+  ]);
+  const floor = user?.bonusFloor ?? 0;
+  return Math.max(balance - floor, 0);
 }

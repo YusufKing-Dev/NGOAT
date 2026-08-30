@@ -113,3 +113,112 @@ in the admin panel (which always stays manual on purpose).
 requests/minute — fine for this usage, but if you add many more
 competitions later you may need to space out the import loop or
 upgrade their plan.
+
+## Major update: accumulator predictions, staking, stricter withdrawals, wallet connect
+
+**Predictions are now accumulator-only.** A single-match straight bet no
+longer exists — every prediction is a "slip" of at least 3 matches
+(`PlatformConfig.minSlipLegs`), one stake for the whole slip, and ALL
+legs must win for it to pay out. Reward = `stake x rewardMultiplier ^
+(number of winning legs)`, so more legs = more risk = more reward. A
+leg that gets voided (match postponed/cancelled) is dropped from the
+requirement rather than failing the slip — if every leg in a slip ends
+up voided, the stake is refunded. See `lib/settlement.ts` for the full
+logic.
+
+**NGC staking** (`/stake`, `app/api/stakes`): lock at least 40,000 NGC
+for 3 months, 6 months, or 1 year. Grows 0.1%/day (compounding), no
+early withdrawal — the full amount releases automatically at maturity
+via `app/api/cron/release-stakes`, now polled by the same GitHub Action
+that checks football results every 15 minutes.
+
+**Withdrawals are stricter now:**
+- The original signup bonus can **never** be withdrawn, even after the
+  wagering requirement is met — only balance earned on top of it
+  (`User.bonusFloor`, see `getWithdrawableBalance()` in `lib/ledger.ts`).
+- $5 minimum, $100 maximum per calendar day
+  (`PlatformConfig.minWithdrawalUsdt` / `maxDailyWithdrawalUsdt`).
+
+**Wallet connect (Solana) — partially built, needs your input before
+it's fully live:**
+- ✅ Done: wallet connection UI (`components/SolanaWalletProvider.tsx`,
+  the Connect button on `/buy-ngoat`) — supports any Wallet Standard
+  wallet (Phantom, Solflare, Trust Wallet, Backpack, etc.) automatically.
+- ❌ Not built yet: actually constructing and sending a USDT (SPL
+  token) transfer from the connected wallet, and verifying it on-chain
+  to auto-credit NGC. This needs:
+  1. Your real Solana deposit wallet address
+  2. A Solana RPC provider (the free public endpoint used by default
+     is too rate-limited for real deposit verification — get a key from
+     Helius, QuickNode, or similar, then set
+     `NEXT_PUBLIC_SOLANA_RPC_ENDPOINT` in your env vars)
+  3. The USDT SPL-token mint address on Solana (already has a config
+     slot: `PlatformConfig.solanaUsdtMint`)
+
+  The manual tx-hash-and-admin-approval flow on `/buy-ngoat` still
+  works today and is the current real path until the above is wired
+  up — don't remove it.
+
+**Migration needed:**
+```powershell
+npx prisma migrate dev --name accumulators_staking_wallet_connect
+```
+
+**New dependency install needed** (wallet adapter packages):
+```powershell
+npm install
+```
+
+## Wallet-connect deposits are now LIVE (real on-chain flow)
+
+The manual tx-hash-and-admin-approval form on `/buy-ngoat` has been
+**removed entirely**. The flow is now:
+
+1. User connects a Solana wallet (Phantom, Solflare, Trust Wallet,
+   Backpack, or any other Wallet Standard wallet — auto-detected).
+2. They enter a USDT amount and click "Buy NGOAT with USDT."
+3. The app builds and sends a real SPL-token USDT transfer from their
+   wallet to the platform's deposit wallet.
+4. Once confirmed on-chain, `app/api/deposits/onchain/route.ts`
+   independently verifies the transaction against Solana itself
+   (not just trusting what the client claims) and credits NGC
+   automatically — no admin approval step in this path anymore.
+
+**Config** (`lib/solanaConfig.ts`):
+- Deposit wallet: `9hKZyLjGB77gzVB1sajaphpPe5r9RHi1yFLYWHm9eyj`
+- USDT SPL mint: `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB`
+  (verify this against Solscan/CoinGecko before real money moves
+  through it — it's correct as of when this was written, but confirm
+  independently since this is exactly the kind of value where being
+  wrong is expensive)
+
+**Required env var — set this in `.env` locally AND in Vercel:**
+```
+NEXT_PUBLIC_SOLANA_RPC_ENDPOINT="https://mainnet.helius-rpc.com/?api-key=YOUR_KEY"
+```
+This is used both client-side (building/sending the transaction) and
+server-side (verifying it) — same variable, both places.
+
+**Security note:** because this key is used client-side, it's visible
+to anyone who inspects the site's network requests or JS bundle — that
+part is unavoidable for a wallet-connect app using a provider RPC
+directly. Recommended: in Helius's dashboard, restrict this key to your
+site's domain so it can't be freely reused elsewhere if someone copies
+it.
+
+**Not tested against a live network** — this was written using the
+standard `@solana/web3.js` + `@solana/spl-token` patterns but couldn't
+be run against real Solana infrastructure while building it. Test with
+a small real transaction ($5, using your own wallet) once deployed,
+before trusting it with other users' money.
+
+**Legacy manual-deposit backend still exists** (`app/api/deposits/route.ts`,
+admin approve/reject) for record-keeping/edge cases, but nothing in the
+UI calls it anymore — the on-chain flow is now the only real path.
+
+## New migration needed (adds a unique constraint on DepositRequest.txHash)
+```powershell
+npx prisma migrate dev --name onchain_deposits
+```
+(Run this AFTER the earlier `accumulators_staking_wallet_connect`
+migration if you haven't run that one yet — do both, in order.)

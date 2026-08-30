@@ -2,24 +2,18 @@
 import { useState } from "react";
 
 const PAGES = [
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823013/1_hyjkvl.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823044/2_deiabs.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823087/3_dycwor.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823088/4_fzbzs1.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823088/5_figipd.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823088/6_mb2lzu.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823088/7_viwetz.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823089/8_d2ecth.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823089/9_xxdvaw.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823089/10_msdpc9.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823091/11_yeoi9x.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823092/12_sie9ri.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823092/13_ct7vbu.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823093/14_vufvzc.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823093/15_sb5klh.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823093/16_y8c5py.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823093/17_hcfcjb.png",
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787823094/18_oyewxc.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021801/1_shpknt.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021801/2_nqlb3b.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021804/3_kxs1qw.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021801/4_qxv8va.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021802/5_t5pp5p.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021802/6_yviylj.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021804/7_m1debl.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021801/8_fdoela.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021801/9_kx0wtr.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021802/10_zxirg5.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021802/11_uk9eoo.png",
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1788021803/12_icoi58.png",
 ];
 
 export default function WhitepaperViewer() {
