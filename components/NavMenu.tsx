@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 
 const LINKS = [
   { href: "/", label: "Homepage" },
@@ -12,6 +14,11 @@ const LINKS = [
 
 export default function NavMenu() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // These links are all "use case" app pages — they don't belong on
+  // the coin marketing homepage, so the whole menu is hidden there.
+  if (pathname === "/") return null;
 
   return (
     <div className="relative">
@@ -39,6 +46,17 @@ export default function NavMenu() {
                 {link.label}
               </Link>
             ))}
+            <div className="border-t border-white/10 mt-1 pt-1">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  signOut({ callbackUrl: "/" });
+                }}
+                className="w-full text-left px-3 py-2 rounded-lg text-sm text-loss hover:bg-surface2 transition"
+              >
+                Log out
+              </button>
+            </div>
           </div>
         </>
       )}
