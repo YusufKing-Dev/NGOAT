@@ -23,7 +23,7 @@ export default function PredictionsPage() {
 
       <div className="flex flex-col gap-3 mb-10">
         <Link href="/register" className="btn-primary text-center">
-          JOIN NGOAT — Get 20,000 NGC Free
+          CREATE ACCOUNT
         </Link>
         <Link href="/login" className="btn-secondary text-center">
           Log in
