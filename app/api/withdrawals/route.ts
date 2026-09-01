@@ -21,6 +21,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "BELOW_MIN_WITHDRAWAL", minUsdt }, { status: 400 });
   }
 
+  // One-wallet-per-account: the first wallet a user withdraws to
+  // becomes permanently linked. Every withdrawal after that must use
+  // the exact same wallet. The DB's unique constraint on
+  // User.walletAddress is what actually stops the same wallet being
+  // linked to a second account — this is the core anti-multi-account
+  // control, enforced here at withdrawal rather than at signup so the
+  // free bonus stays frictionless to claim.
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  if (dbUser?.walletAddress && dbUser.walletAddress !== walletAddress) {
+    return NextResponse.json(
+      { error: "WALLET_MISMATCH", linkedWallet: dbUser.walletAddress },
+      { status: 400 }
+    );
+  }
+  if (!dbUser?.walletAddress) {
+    try {
+      await prisma.user.update({ where: { id: user.id }, data: { walletAddress } });
+    } catch {
+      // Unique constraint hit — this wallet is already linked to a
+      // different account.
+      return NextResponse.json({ error: "WALLET_ALREADY_LINKED" }, { status: 400 });
+    }
+  }
+
   // Daily cap: sum today's PENDING + PAID withdrawal requests (rejected
   // ones never actually went through, so they don't count against it).
   const startOfDay = new Date();

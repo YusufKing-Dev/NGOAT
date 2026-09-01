@@ -169,7 +169,7 @@ export default function HomePage() {
 
       {/* TOKENOMICS */}
       <section className="card">
-        <h2 className="text-sm text-muted uppercase tracking-wide mb-3">Tokenomics</h2>
+        <h2 className="text-sm text-brand uppercase tracking-wide mb-3">Tokenomics</h2>
         <div className="space-y-2 text-sm mb-4">
           {TOKENOMICS.map((row) => (
             <div key={row.label} className="flex justify-between border-b border-white/5 pb-2">
@@ -179,7 +179,7 @@ export default function HomePage() {
           ))}
         </div>
 
-        <h3 className="text-xs text-muted uppercase tracking-wide mb-2">Allocation</h3>
+        <h3 className="text-xs text-brand uppercase tracking-wide mb-2">Allocation</h3>
         <div className="space-y-2 text-sm">
           {ALLOCATION.map((row) => (
             <div key={row.label} className="flex justify-between">
@@ -222,7 +222,7 @@ export default function HomePage() {
               <p className="font-semibold text-brand text-sm">
                 {r.phase} — {r.title}
               </p>
-              <ul className="text-sm text-muted mt-1 space-y-0.5 list-disc list-inside">
+              <ul className="text-sm text-muted mt-1 space-y-1 list-disc list-outside pl-5">
                 {r.items.map((item) => (
                   <li key={item}>{item}</li>
                 ))}

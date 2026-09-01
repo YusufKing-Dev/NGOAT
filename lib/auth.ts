@@ -20,6 +20,11 @@ export const authOptions: NextAuthOptions = {
         if (!user || user.suspended) return null;
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!valid) return null;
+        // Blocks login until the verification link has been clicked.
+        // Thrown here so the login page can show a specific message
+        // (NextAuth surfaces this via the `error` query param) instead
+        // of a generic "invalid credentials".
+        if (!user.emailVerified) throw new Error("EMAIL_NOT_VERIFIED");
         return { id: user.id, name: user.username, email: user.email, role: user.role } as any;
       },
     }),

@@ -22,6 +22,7 @@ enum LedgerType {
   REFUND
   STAKE_LOCK
   STAKE_RELEASE
+  REFERRAL_BONUS
 }
 
 enum LedgerStatus {
@@ -96,6 +97,28 @@ model User {
   bonusFloor Int @default(0)
 
   signupBonusIssued Boolean @default(false)
+
+  // Email verification (Option B: NextAuth stays, verification layer
+  // added on top via SendGrid). Login is blocked until verified.
+  emailVerified          Boolean   @default(false)
+  verificationToken      String?   @unique
+  verificationTokenExpiry DateTime?
+
+  // Referrals: 2,000 NGC to the referrer once the referred user
+  // verifies their email. referralCode is this user's own shareable
+  // code; referredByUserId links back to whoever referred them.
+  referralCode      String  @unique
+  referredByUserId  String?
+  referredBy        User?   @relation("Referrals", fields: [referredByUserId], references: [id])
+  referrals         User[]  @relation("Referrals")
+  referralBonusPaid Boolean @default(false) // guards against double-crediting the referrer
+
+  // One-wallet-per-account: enforced at first withdrawal, not at
+  // signup, so the free bonus stays frictionless to claim. Once set,
+  // a user can only ever withdraw to this exact wallet, and the DB
+  // unique constraint means no other account can ever link the same
+  // wallet — this is the core anti-multi-accounting control.
+  walletAddress String? @unique
 
   ledgerEntries   LedgerEntry[]
   deposits        DepositRequest[]
@@ -238,6 +261,7 @@ model PlatformConfig {
   bonusWageringMultiplier Int   @default(3)
   minBetCredits           Int   @default(5000)
   rewardMultiplier        Float @default(1.8)
+  referralBonusCredits    Int   @default(2000)
 
   // Accumulator predictions: every slip must have at least this many legs.
   minSlipLegs Int @default(3)

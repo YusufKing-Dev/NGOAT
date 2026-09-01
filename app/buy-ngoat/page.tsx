@@ -83,7 +83,7 @@ export default function BuyNgoatPage() {
 
   return (
     <div className="pt-6 space-y-4">
-      <h1 className="scoreboard text-3xl">BUY NGOAT</h1>
+      <h1 className="scoreboard text-3xl">BUY NGC</h1>
       <p className="text-sm text-muted">
         Rate: 1 USDT = {NGC_PER_USDT.toLocaleString()} NGC · Minimum ${MIN_DEPOSIT_USDT}
       </p>
@@ -111,7 +111,7 @@ export default function BuyNgoatPage() {
           </p>
           {status && <p className="text-sm text-brand">{status}</p>}
           <button onClick={handleBuy} disabled={busy} className="btn-primary w-full">
-            {busy ? "Processing…" : "Buy NGOAT with USDT"}
+            {busy ? "Processing…" : "Buy NGC with USDT"}
           </button>
           <p className="text-xs text-muted">
             Your wallet will ask you to approve a USDT transfer on Solana. NGC credits land

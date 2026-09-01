@@ -222,3 +222,37 @@ npx prisma migrate dev --name onchain_deposits
 ```
 (Run this AFTER the earlier `accumulators_staking_wallet_connect`
 migration if you haven't run that one yet — do both, in order.)
+
+## Email verification (Resend) + referrals + one-wallet-per-account
+
+**Email verification** — registration no longer auto-logs in. It sends
+a verification link (via Resend) and login is blocked
+(`EMAIL_NOT_VERIFIED`) until that link is clicked. A resend option is
+on the login page for expired/lost links.
+
+**Required env vars** (set in `.env` and Vercel):
+```
+RESEND_API_KEY="your Resend API key"
+RESEND_FROM_EMAIL="verify@ngoat.xyz"   # must be on a domain verified in Resend
+```
+Until both are set, registration still works, but no email actually
+sends (logged as a warning server-side) — useful for local dev before
+the domain is fully verified.
+
+**Referrals** — every user gets a unique `referralCode`
+(`/register?ref=CODE` pre-fills it). The referrer gets 2,000 NGC
+(`PlatformConfig.referralBonusCredits`) once the referred user verifies
+their email — not at raw signup, so it's tied to the same anti-abuse
+gate. Shareable link + running count shown on `/dashboard`.
+
+**One wallet per account** — enforced at first withdrawal, not signup
+(keeps the free bonus frictionless). `/withdraw` now uses your actually
+connected Solana wallet instead of a typed-in address. The first wallet
+you withdraw with gets permanently linked (`User.walletAddress`,
+DB-unique) — every withdrawal after that must use that same wallet, and
+no other account can ever link it.
+
+## New migration needed
+```powershell
+npx prisma migrate dev --name email_verification_referrals_wallet_link
+```

@@ -1,15 +1,15 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
-import LoadingRadar from "@/components/LoadingRadar";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-export default function RegisterPage() {
-  const router = useRouter();
+function RegisterForm() {
+  const searchParams = useSearchParams();
+  const refCode = searchParams.get("ref") ?? "";
+
   const [form, setForm] = useState({ username: "", email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,7 +19,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, referralCode: refCode || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -27,17 +27,7 @@ export default function RegisterPage() {
         setLoading(false);
         return;
       }
-      const login = await signIn("credentials", {
-        email: form.email,
-        password: form.password,
-        redirect: false,
-      });
-      if (login?.ok) {
-        setRedirecting(true);
-        router.push("/dashboard");
-      } else {
-        setError("Registered, but login failed — try logging in manually.");
-      }
+      setRegistered(true);
     } catch {
       setError("Something went wrong");
     } finally {
@@ -45,11 +35,17 @@ export default function RegisterPage() {
     }
   }
 
-  if (redirecting) {
+  if (registered) {
     return (
-      <div className="pt-24 flex flex-col items-center gap-6">
-        <LoadingRadar />
-        <p className="text-muted text-sm">Setting up your dashboard…</p>
+      <div className="pt-16 text-center space-y-4">
+        <h1 className="scoreboard text-3xl">CHECK YOUR EMAIL</h1>
+        <p className="text-muted text-sm">
+          We've sent a verification link to <span className="text-ink">{form.email}</span>. Click
+          it to activate your account and log in — your 20,000 NGC bonus is already waiting.
+        </p>
+        <p className="text-xs text-muted">
+          Didn't get it? Check spam, or head to the login page to resend it.
+        </p>
       </div>
     );
   }
@@ -57,7 +53,10 @@ export default function RegisterPage() {
   return (
     <div className="pt-8">
       <h1 className="scoreboard text-3xl mb-1">JOIN NGOAT</h1>
-      <p className="text-muted text-sm mb-6">Get 20,000 NGC free the moment you sign up.</p>
+      <p className="text-muted text-sm mb-6">Get 20,000 NGC free the moment you verify your email.</p>
+      {refCode && (
+        <p className="text-xs text-brand mb-4">Referred by code: {refCode}</p>
+      )}
 
       <form onSubmit={handleSubmit} className="auth-form">
         <span className="input-span">
@@ -102,5 +101,13 @@ export default function RegisterPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<p className="text-muted pt-10 text-center">Loading…</p>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

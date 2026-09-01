@@ -14,11 +14,11 @@ body {
 }
 
 .btn-primary {
-  @apply bg-brand text-white font-semibold rounded-lg px-5 py-3 active:scale-[0.98] transition;
+  @apply bg-brand text-white font-semibold text-sm tracking-wide rounded-lg px-5 py-3 leading-snug flex items-center justify-center text-center active:scale-[0.98] transition;
 }
 
 .btn-secondary {
-  @apply bg-surface2 text-ink font-medium rounded-lg px-5 py-3 border border-white/10 active:scale-[0.98] transition;
+  @apply bg-surface2 text-ink font-medium text-sm tracking-wide rounded-lg px-5 py-3 leading-snug flex items-center justify-center text-center border border-white/10 active:scale-[0.98] transition;
 }
 
 /*
@@ -167,3 +167,37 @@ body {
 .social-card .iso-pro:hover .pulse-ring-1 { opacity: 0.2; }
 .social-card .iso-pro:hover .pulse-ring-2 { opacity: 0.4; transform: translate(4px, -4px); }
 .social-card .iso-pro:hover .pulse-ring-3 { opacity: 0.6; transform: translate(8px, -8px); }
+
+/* ===== Hero background — the globe image, low opacity, layered behind
+   the hero content only (not the rest of the page), with a fade at the
+   edges so it blends into the surrounding pitch-navy background rather
+   than having a hard rectangular edge. ===== */
+.hero-bg {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+}
+.hero-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("https://res.cloudinary.com/drdrwbdkp/image/upload/v1788082941/a1b128ac0fb3af4407f23d6f489e524e_qkz63v.jpg");
+  background-size: cover;
+  background-position: center;
+  opacity: 0.16;
+  mask-image: radial-gradient(ellipse at center, black 45%, transparent 85%);
+  z-index: 0;
+}
+.hero-bg::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 20% 15%, rgba(0, 135, 81, 0.25), transparent 45%),
+    radial-gradient(circle at 85% 10%, rgba(0, 168, 92, 0.18), transparent 40%);
+  filter: blur(10px);
+  z-index: 0;
+}
+.hero-bg > * {
+  position: relative;
+  z-index: 1;
+}
