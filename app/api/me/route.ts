@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getBalance, getWithdrawableBalance } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
 
+// Reads live data / has side effects on every request — must never
+// be statically pre-rendered at build time.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
