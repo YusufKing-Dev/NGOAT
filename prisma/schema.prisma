@@ -3,163 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
-model User {
-  id                      String              @id @default(cuid())
-  username                String              @unique
-  email                   String              @unique
-  passwordHash            String
-  role                    Role                @default(USER)
-  suspended               Boolean             @default(false)
-  createdAt               DateTime            @default(now())
-  bonusWageringRequired   Int                 @default(0)
-  bonusWageringProgress   Int                 @default(0)
-  signupBonusIssued       Boolean             @default(false)
-  bonusFloor              Int                 @default(0)
-  emailVerified           Boolean             @default(false)
-  referralBonusPaid       Boolean             @default(false)
-  referralCode            String              @unique
-  referredByUserId        String?
-  verificationToken       String?             @unique
-  verificationTokenExpiry DateTime?
-  walletAddress           String?             @unique
-  deposits                DepositRequest[]
-  ledgerEntries           LedgerEntry[]
-  predictions             Prediction[]
-  predictionSlips         PredictionSlip[]
-  stakes                  Stake[]
-  referredBy              User?               @relation("Referrals", fields: [referredByUserId], references: [id])
-  referrals               User[]              @relation("Referrals")
-  withdrawals             WithdrawalRequest[]
-}
-
-model LedgerEntry {
-  id          String       @id @default(cuid())
-  userId      String
-  type        LedgerType
-  amount      Int
-  status      LedgerStatus @default(CONFIRMED)
-  reference   String       @unique
-  description String?
-  createdAt   DateTime     @default(now())
-  user        User         @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-}
-
-model DepositRequest {
-  id               String        @id @default(cuid())
-  userId           String
-  usdtAmount       Float
-  network          String
-  txHash           String        @unique
-  payoutWalletUsed String
-  creditsToIssue   Int
-  status           DepositStatus @default(PENDING)
-  adminNote        String?
-  createdAt        DateTime      @default(now())
-  reviewedAt       DateTime?
-  autoVerified     Boolean       @default(false)
-  user             User          @relation(fields: [userId], references: [id])
-}
-
-model WithdrawalRequest {
-  id            String           @id @default(cuid())
-  userId        String
-  usdtAmount    Float
-  network       String
-  walletAddress String
-  status        WithdrawalStatus @default(PENDING)
-  payoutTxHash  String?
-  createdAt     DateTime         @default(now())
-  reviewedAt    DateTime?
-  user          User             @relation(fields: [userId], references: [id])
-}
-
-model Match {
-  id                 String       @id @default(cuid())
-  homeTeam           String
-  awayTeam           String
-  competition        String?
-  kickoff            DateTime
-  predictionDeadline DateTime
-  entryCredits       Int          @default(1000)
-  rewardCredits      Int          @default(1800)
-  status             MatchStatus  @default(UPCOMING)
-  finalHomeScore     Int?
-  finalAwayScore     Int?
-  createdAt          DateTime     @default(now())
-  autoSettled        Boolean      @default(false)
-  externalId         String?      @unique
-  predictions        Prediction[]
-}
-
-model Prediction {
-  id        String           @id @default(cuid())
-  userId    String
-  matchId   String
-  pick      PredictionPick
-  stake     Int
-  status    PredictionStatus @default(PENDING)
-  createdAt DateTime         @default(now())
-  slipId    String
-  match     Match            @relation(fields: [matchId], references: [id])
-  slip      PredictionSlip   @relation(fields: [slipId], references: [id])
-  user      User             @relation(fields: [userId], references: [id])
-
-  @@unique([userId, matchId])
-}
-
-model PredictionSlip {
-  id        String           @id @default(cuid())
-  userId    String
-  stake     Int
-  status    PredictionStatus @default(PENDING)
-  reward    Int?
-  createdAt DateTime         @default(now())
-  legs      Prediction[]
-  user      User             @relation(fields: [userId], references: [id])
-}
-
-model Stake {
-  id            String        @id @default(cuid())
-  userId        String
-  principal     Int
-  duration      StakeDuration
-  dailyRatePct  Float
-  status        StakeStatus   @default(ACTIVE)
-  startedAt     DateTime      @default(now())
-  maturesAt     DateTime
-  releasedAt    DateTime?
-  releaseAmount Int?
-  user          User          @relation(fields: [userId], references: [id])
-}
-
-model PlatformConfig {
-  id                      String  @id @default("singleton")
-  usdtToCreditsRate       Int     @default(2000)
-  depositWallet           String?
-  depositNetwork          String?
-  minDeposit              Float   @default(5)
-  maxDeposit              Float   @default(1000)
-  minRedemption           Int     @default(1000)
-  maxRedemption           Int     @default(1000000)
-  signupBonusCredits      Int     @default(20000)
-  bonusWageringMultiplier Int     @default(3)
-  minBetCredits           Int     @default(5000)
-  rewardMultiplier        Float   @default(1.8)
-  maxDailyWithdrawalUsdt  Float   @default(100)
-  minSlipLegs             Int     @default(3)
-  minWithdrawalUsdt       Float   @default(5)
-  solanaRpcEndpoint       String?
-  solanaUsdtMint          String?
-  stakingDailyRatePct     Float   @default(0.1)
-  stakingMinCredits       Int     @default(40000)
-  referralBonusCredits    Int     @default(2000)
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -228,4 +73,212 @@ enum StakeStatus {
   ACTIVE
   MATURED
   RELEASED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(USER)
+  suspended    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  // Signup-bonus anti-abuse: bonus-derived credits are locked from
+  // withdrawal until the user has staked (wagered) this much in total.
+  bonusWageringRequired Int @default(0)
+  bonusWageringProgress Int @default(0)
+
+  // Permanent withdrawal floor: the free bonus can NEVER be withdrawn,
+  // even after the wagering requirement is met — only balance ABOVE
+  // this floor is ever eligible to leave as USDT. Set once, at the
+  // exact amount actually issued, so later config changes never
+  // retroactively affect an existing user's floor.
+  bonusFloor Int @default(0)
+
+  signupBonusIssued Boolean @default(false)
+
+  // Email verification (Option B: NextAuth stays, verification layer
+  // added on top via SendGrid). Login is blocked until verified.
+  emailVerified          Boolean   @default(false)
+  verificationToken      String?   @unique
+  verificationTokenExpiry DateTime?
+
+  // Rate-limits the resend-verification endpoint to one email per
+  // hour per account, independent of the token's own 24h expiry.
+  verificationEmailLastSentAt DateTime?
+
+  // Referrals: 2,000 NGC to the referrer once the referred user
+  // verifies their email. referralCode is this user's own shareable
+  // code; referredByUserId links back to whoever referred them.
+  referralCode      String  @unique
+  referredByUserId  String?
+  referredBy        User?   @relation("Referrals", fields: [referredByUserId], references: [id])
+  referrals         User[]  @relation("Referrals")
+  referralBonusPaid Boolean @default(false) // guards against double-crediting the referrer
+
+  // One-wallet-per-account: enforced at first withdrawal, not at
+  // signup, so the free bonus stays frictionless to claim. Once set,
+  // a user can only ever withdraw to this exact wallet, and the DB
+  // unique constraint means no other account can ever link the same
+  // wallet — this is the core anti-multi-accounting control.
+  walletAddress String? @unique
+
+  ledgerEntries   LedgerEntry[]
+  deposits        DepositRequest[]
+  withdrawals     WithdrawalRequest[]
+  predictions     Prediction[]
+  predictionSlips PredictionSlip[]
+  stakes          Stake[]
+}
+
+// Source of truth for balances. Never store/edit a raw balance column —
+// always derive it by summing CONFIRMED entries for a user.
+model LedgerEntry {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  type        LedgerType
+  amount      Int          // positive = credit, negative = debit (in NGOAT Credits)
+  status      LedgerStatus @default(CONFIRMED)
+  reference   String       @unique
+  description String?
+  createdAt   DateTime     @default(now())
+
+  @@index([userId])
+}
+
+model DepositRequest {
+  id               String        @id @default(cuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id])
+  usdtAmount       Float
+  network          String
+  txHash           String        @unique // DB-level guard against ever crediting the same on-chain tx twice
+  payoutWalletUsed String
+  creditsToIssue   Int
+  status           DepositStatus @default(PENDING)
+  adminNote        String?
+  createdAt        DateTime      @default(now())
+  reviewedAt       DateTime?
+
+  // Set when this deposit came through the on-chain wallet-connect flow
+  // (auto-verified) rather than the manual tx-hash submission form.
+  autoVerified Boolean @default(false)
+}
+
+model WithdrawalRequest {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  usdtAmount    Float
+  network       String
+  walletAddress String
+  status        WithdrawalStatus @default(PENDING)
+  payoutTxHash  String?
+  createdAt     DateTime         @default(now())
+  reviewedAt    DateTime?
+}
+
+model Match {
+  id                 String      @id @default(cuid())
+  homeTeam           String
+  awayTeam           String
+  competition        String?
+  kickoff            DateTime
+  predictionDeadline DateTime
+  entryCredits       Int         @default(1000)
+  rewardCredits      Int         @default(1800)
+  status             MatchStatus @default(UPCOMING)
+  finalHomeScore     Int?
+  finalAwayScore     Int?
+  createdAt          DateTime    @default(now())
+
+  externalId  String? @unique
+  autoSettled Boolean @default(false)
+
+  predictions Prediction[]
+}
+
+// One leg of an accumulator slip. Every prediction now belongs to a
+// PredictionSlip — there is no more single-match, straight-bet flow.
+model Prediction {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  matchId   String
+  match     Match            @relation(fields: [matchId], references: [id])
+  slipId    String
+  slip      PredictionSlip   @relation(fields: [slipId], references: [id])
+  pick      PredictionPick
+  stake     Int              // informational, mirrors slip.stake
+  status    PredictionStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, matchId]) // can't pick the same match twice, ever
+}
+
+// An accumulator slip: minimum 3 matches, one stake for the whole slip,
+// ALL legs must win for it to pay out. Reward compounds per leg
+// (stake x rewardMultiplier ^ legCount) so more legs = more risk = more
+// reward, using the same base multiplier as before.
+model PredictionSlip {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  stake     Int
+  status    PredictionStatus @default(PENDING)
+  reward    Int? // set once settled, for the record
+  createdAt DateTime         @default(now())
+
+  legs Prediction[]
+}
+
+// NGC staking: lock NGC for a fixed term, grows 0.1%/day, released in
+// full (principal + growth) at maturity. No early withdrawal in this
+// version — locked funds stay locked until the term ends.
+model Stake {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  principal     Int
+  duration      StakeDuration
+  dailyRatePct  Float // e.g. 0.1 = 0.1%/day, snapshot at stake time
+  status        StakeStatus   @default(ACTIVE)
+  startedAt     DateTime      @default(now())
+  maturesAt     DateTime
+  releasedAt    DateTime?
+  releaseAmount Int? // principal + accrued growth, set at release
+}
+
+model PlatformConfig {
+  id                String  @id @default("singleton")
+  usdtToCreditsRate Int     @default(2000) // 1 USDT = this many NGC
+  depositWallet     String?
+  depositNetwork    String?
+  minDeposit        Float   @default(5)
+  maxDeposit        Float   @default(1000)
+  minRedemption     Int     @default(1000)
+  maxRedemption     Int     @default(1000000)
+
+  signupBonusCredits      Int   @default(20000)
+  bonusWageringMultiplier Int   @default(3)
+  minBetCredits           Int   @default(5000)
+  rewardMultiplier        Float @default(1.8)
+  referralBonusCredits    Int   @default(500)
+
+  // Accumulator predictions: every slip must have at least this many legs.
+  minSlipLegs Int @default(3)
+
+  // NGC staking
+  stakingMinCredits Int   @default(40000)
+  stakingDailyRatePct Float @default(0.1) // percent, e.g. 0.1 = 0.1%/day
+
+  // Daily withdrawal limits, in USDT
+  minWithdrawalUsdt    Float @default(5)
+  maxDailyWithdrawalUsdt Float @default(100)
+
+  // Solana on-chain deposit config (wallet-connect flow)
+  solanaUsdtMint    String? // USDT SPL-token mint address on Solana
+  solanaRpcEndpoint String? // e.g. an Alchemy/Helius RPC URL
 }

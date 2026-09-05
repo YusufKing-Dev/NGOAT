@@ -44,11 +44,18 @@ function LoginForm() {
 
   async function resendVerification() {
     setResendStatus("Sending…");
-    await fetch("/api/auth/resend-verification", {
+    const res = await fetch("/api/auth/resend-verification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: form.email }),
     });
+    if (res.status === 429) {
+      const data = await res.json().catch(() => ({}));
+      const seconds = data?.retryAfterSeconds ?? 0;
+      const minutes = Math.ceil(seconds / 60);
+      setResendStatus(`Please wait ${minutes} more minute${minutes === 1 ? "" : "s"} before requesting another email.`);
+      return;
+    }
     setResendStatus("If that email is registered, a new verification link is on its way.");
   }
 

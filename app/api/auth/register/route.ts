@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       passwordHash,
       verificationToken,
       verificationTokenExpiry,
+      verificationEmailLastSentAt: new Date(),
       referralCode: ownReferralCode,
       referredByUserId,
     },
