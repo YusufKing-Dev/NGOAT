@@ -13,7 +13,7 @@ type Match = {
 type Pick = "HOME" | "DRAW" | "AWAY";
 
 const MIN_STAKE = 5000;
-const MIN_LEGS = 3;
+const MIN_LEGS = 5;
 
 export default function PredictPage() {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -107,27 +107,38 @@ export default function PredictPage() {
             <p className="text-xs text-muted mb-1">
               {m.competition ?? "Friendly"} · {new Date(m.kickoff).toLocaleString()}
             </p>
-            <p className="font-semibold mb-3">
+            <p className="font-semibold mb-3 break-words">
               {m.homeTeam} <span className="text-brand">vs</span> {m.awayTeam}
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2 items-stretch">
               <button
                 onClick={() => togglePick(m.id, "HOME")}
-                className={selected === "HOME" ? "btn-primary text-sm py-2" : "btn-secondary text-sm py-2"}
+                className={
+                  (selected === "HOME" ? "btn-primary" : "btn-secondary") +
+                  " flex flex-col items-center justify-center gap-1 text-xs sm:text-sm py-2 px-1 h-full text-center leading-tight"
+                }
               >
-                {m.homeTeam} <span className="text-brand">Win</span>
+                <span className="break-words hyphens-auto line-clamp-2">{m.homeTeam}</span>
+                <span className="text-brand text-[0.7rem] sm:text-xs font-semibold">Win</span>
               </button>
               <button
                 onClick={() => togglePick(m.id, "DRAW")}
-                className={selected === "DRAW" ? "btn-primary text-sm py-2" : "btn-secondary text-sm py-2"}
+                className={
+                  (selected === "DRAW" ? "btn-primary" : "btn-secondary") +
+                  " flex flex-col items-center justify-center py-2 px-1 h-full"
+                }
               >
-                <span className="text-brand">Draw</span>
+                <span className="text-brand text-xs sm:text-sm font-semibold">Draw</span>
               </button>
               <button
                 onClick={() => togglePick(m.id, "AWAY")}
-                className={selected === "AWAY" ? "btn-primary text-sm py-2" : "btn-secondary text-sm py-2"}
+                className={
+                  (selected === "AWAY" ? "btn-primary" : "btn-secondary") +
+                  " flex flex-col items-center justify-center gap-1 text-xs sm:text-sm py-2 px-1 h-full text-center leading-tight"
+                }
               >
-                {m.awayTeam} <span className="text-brand">Win</span>
+                <span className="break-words hyphens-auto line-clamp-2">{m.awayTeam}</span>
+                <span className="text-brand text-[0.7rem] sm:text-xs font-semibold">Win</span>
               </button>
             </div>
           </div>

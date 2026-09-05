@@ -268,7 +268,7 @@ model PlatformConfig {
   referralBonusCredits    Int   @default(500)
 
   // Accumulator predictions: every slip must have at least this many legs.
-  minSlipLegs Int @default(3)
+  minSlipLegs Int @default(5)
 
   // NGC staking
   stakingMinCredits Int   @default(40000)
