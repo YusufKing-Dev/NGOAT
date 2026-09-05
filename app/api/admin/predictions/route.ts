@@ -1,27 +1,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 // Reads live data / has side effects on every request — must never
 // be statically pre-rendered at build time.
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
   const slips = await prisma.predictionSlip.findMany({
-    where: { userId: user.id },
     include: {
+      user: { select: { username: true, email: true } },
       legs: {
-        include: {
-          match: {
-            select: { homeTeam: true, awayTeam: true, status: true, kickoff: true },
-          },
-        },
+        include: { match: { select: { homeTeam: true, awayTeam: true, status: true } } },
       },
     },
     orderBy: { createdAt: "desc" },
+    take: 200,
   });
 
   return NextResponse.json({ slips });

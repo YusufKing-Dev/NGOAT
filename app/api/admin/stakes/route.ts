@@ -10,10 +10,11 @@ export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
-  const withdrawals = await prisma.withdrawalRequest.findMany({
+  const stakes = await prisma.stake.findMany({
     include: { user: { select: { username: true, email: true } } },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: 100,
+    orderBy: { startedAt: "desc" },
+    take: 200,
   });
-  return NextResponse.json({ withdrawals });
+
+  return NextResponse.json({ stakes });
 }

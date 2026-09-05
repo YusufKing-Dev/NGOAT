@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addLedgerEntry } from "@/lib/ledger";
 
+// Reads live data / has side effects on every request — must never
+// be statically pre-rendered at build time.
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
   const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";

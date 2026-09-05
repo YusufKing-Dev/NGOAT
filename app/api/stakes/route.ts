@@ -5,6 +5,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { DURATION_DAYS } from "@/lib/staking";
 import { StakeDuration } from "@prisma/client";
 
+// Reads live data / has side effects on every request — must never
+// be statically pre-rendered at build time.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });

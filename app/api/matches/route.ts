@@ -1,44 +1,47 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth";
+import { getBalance, getWithdrawableBalance } from "@/lib/ledger";
+import { getCurrentUser } from "@/lib/auth";
+
+// Reads live data / has side effects on every request — must never
+// be statically pre-rendered at build time.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const matches = await prisma.match.findMany({
-    where: { status: "UPCOMING" },
-    orderBy: { kickoff: "asc" },
-  });
-  return NextResponse.json({ matches });
-}
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
-export async function POST(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  const [dbUser, balance, withdrawable, recent, slips, referralCount] = await Promise.all([
+    prisma.user.findUnique({ where: { id: user.id } }),
+    getBalance(user.id),
+    getWithdrawableBalance(user.id),
+    prisma.ledgerEntry.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    // A "prediction" from the user's point of view is a whole slip
+    // (accumulator), not an individual match leg.
+    prisma.predictionSlip.findMany({ where: { userId: user.id } }),
+    prisma.user.count({ where: { referredByUserId: user.id, referralBonusPaid: true } }),
+  ]);
 
-  const body = await req.json();
-  const { homeTeam, awayTeam, competition, kickoff, predictionDeadline } = body;
+  const wins = slips.filter((s) => s.status === "WON").length;
+  const losses = slips.filter((s) => s.status === "LOST").length;
+  const total = slips.length;
 
-  if (!homeTeam || !awayTeam || !kickoff || !predictionDeadline) {
-    return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
-  }
-
-  // entryCredits/rewardCredits are legacy display fields only — stake is
-  // now chosen per-prediction by the user (see /api/predictions), so
-  // these just record the platform's minimum for reference.
-  const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-  const minBet = config?.minBetCredits ?? 5000;
-  const rewardMultiplier = config?.rewardMultiplier ?? 1.8;
-
-  const match = await prisma.match.create({
-    data: {
-      homeTeam,
-      awayTeam,
-      competition,
-      kickoff: new Date(kickoff),
-      predictionDeadline: new Date(predictionDeadline),
-      entryCredits: minBet,
-      rewardCredits: Math.round(minBet * rewardMultiplier),
+  return NextResponse.json({
+    balance,
+    withdrawableBalance: withdrawable,
+    stats: {
+      total,
+      wins,
+      losses,
+      winPct: total ? Math.round((wins / total) * 100) : 0,
     },
+    recent,
+    referralCode: dbUser?.referralCode ?? null,
+    referralCount,
+    walletAddress: dbUser?.walletAddress ?? null,
   });
-
-  return NextResponse.json({ match });
 }

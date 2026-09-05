@@ -6,6 +6,10 @@ function isAuthorized(req: NextRequest) {
   return req.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
 }
 
+// Reads live data / has side effects on every request — must never
+// be statically pre-rendered at build time.
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 

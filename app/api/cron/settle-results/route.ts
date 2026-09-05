@@ -9,6 +9,10 @@ function isAuthorized(req: NextRequest) {
 
 const CANCELLED_STATUSES = ["POSTPONED", "SUSPENDED", "CANCELLED"];
 
+// Reads live data / has side effects on every request — must never
+// be statically pre-rendered at build time.
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 

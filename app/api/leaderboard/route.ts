@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// This route reads live data on every request and must never be
+// statically pre-rendered at build time (the build step has no live
+// DB connection to run this query against).
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const rewardEntries = await prisma.ledgerEntry.groupBy({
     by: ["userId"],
