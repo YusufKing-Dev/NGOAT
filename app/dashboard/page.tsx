@@ -82,6 +82,9 @@ export default function DashboardPage() {
         <Link href="/predict" className="btn-secondary text-center">
           MAKE PREDICTION
         </Link>
+        <Link href="/my-predictions" className="btn-secondary text-center">
+          MY PREDICTIONS
+        </Link>
         <Link href="/withdraw" className="btn-secondary text-center">
           WITHDRAW USDT
         </Link>

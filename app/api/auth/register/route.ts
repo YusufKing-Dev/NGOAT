@@ -25,10 +25,15 @@ export async function POST(req: NextRequest) {
 
   // Resolve an optional referral code to the referrer's user id. An
   // unknown/invalid code is silently ignored rather than blocking
-  // registration — referral is a bonus, not a requirement.
+  // registration — referral is a bonus, not a requirement. Matched
+  // case-insensitively so a manually-typed code (as opposed to one
+  // auto-filled from a link) still works even if the case doesn't
+  // exactly match how it was generated.
   let referredByUserId: string | undefined;
   if (referralCode) {
-    const referrer = await prisma.user.findUnique({ where: { referralCode } });
+    const referrer = await prisma.user.findFirst({
+      where: { referralCode: { equals: referralCode.trim(), mode: "insensitive" } },
+    });
     if (referrer) referredByUserId = referrer.id;
   }
 

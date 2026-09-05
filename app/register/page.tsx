@@ -4,9 +4,10 @@ import { useSearchParams } from "next/navigation";
 
 function RegisterForm() {
   const searchParams = useSearchParams();
-  const refCode = searchParams.get("ref") ?? "";
+  const refFromUrl = searchParams.get("ref") ?? "";
 
   const [form, setForm] = useState({ username: "", email: "", password: "" });
+  const [refCodeInput, setRefCodeInput] = useState(refFromUrl);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
@@ -19,7 +20,10 @@ function RegisterForm() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, referralCode: refCode || undefined }),
+        body: JSON.stringify({
+          ...form,
+          referralCode: refCodeInput.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -54,9 +58,6 @@ function RegisterForm() {
     <div className="pt-8">
       <h1 className="scoreboard text-3xl mb-1">JOIN NGOAT</h1>
       <p className="text-muted text-sm mb-6">Get 20,000 NGC free the moment you verify your email.</p>
-      {refCode && (
-        <p className="text-xs text-brand mb-4">Referred by code: {refCode}</p>
-      )}
 
       <form onSubmit={handleSubmit} className="auth-form">
         <span className="input-span">
@@ -93,6 +94,17 @@ function RegisterForm() {
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             required
+          />
+        </span>
+        <span className="input-span">
+          <label htmlFor="refCode" className="form-label">
+            Referral code (optional)
+          </label>
+          <input
+            id="refCode"
+            value={refCodeInput}
+            onChange={(e) => setRefCodeInput(e.target.value)}
+            placeholder="Got a code from a friend? Enter it here"
           />
         </span>
         {error && <p className="text-loss text-sm">{error}</p>}

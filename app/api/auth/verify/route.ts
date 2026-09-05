@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   // double-credit if this link is ever hit twice).
   if (user.referredByUserId && !user.referralBonusPaid) {
     const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-    const bonus = config?.referralBonusCredits ?? 2000;
+    const bonus = config?.referralBonusCredits ?? 500;
 
     await addLedgerEntry({
       userId: user.referredByUserId,
