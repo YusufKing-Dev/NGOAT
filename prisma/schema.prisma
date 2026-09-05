@@ -108,9 +108,11 @@ model User {
   // hour per account, independent of the token's own 24h expiry.
   verificationEmailLastSentAt DateTime?
 
-  // Referrals: 2,000 NGC to the referrer once the referred user
-  // verifies their email. referralCode is this user's own shareable
-  // code; referredByUserId links back to whoever referred them.
+  // Referrals: PlatformConfig.referralBonusCredits (default 500 NGC)
+  // is paid to the referrer once the referred user verifies their
+  // email — see app/api/auth/verify/route.ts. referralCode is this
+  // user's own shareable code; referredByUserId links back to
+  // whoever referred them.
   referralCode      String  @unique
   referredByUserId  String?
   referredBy        User?   @relation("Referrals", fields: [referredByUserId], references: [id])
