@@ -13,6 +13,18 @@ export async function POST(req: NextRequest) {
   }
 
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
+
+  // Withdrawals are switched off until launch — flip
+  // PlatformConfig.withdrawalsEnabled from the admin Settings tab
+  // when ready. Existing requests already in the system (PENDING,
+  // PAID, REJECTED) are unaffected; this only blocks new submissions.
+  if (!config?.withdrawalsEnabled) {
+    return NextResponse.json(
+      { error: "WITHDRAWALS_DISABLED", message: "Withdrawals are temporarily closed until launch." },
+      { status: 403 }
+    );
+  }
+
   const rate = config?.usdtToCreditsRate ?? 2000;
   const minUsdt = config?.minWithdrawalUsdt ?? 5;
   const maxDailyUsdt = config?.maxDailyWithdrawalUsdt ?? 100;

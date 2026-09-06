@@ -25,6 +25,8 @@ const NUMERIC_FIELDS = [
 
 const STRING_FIELDS = ["depositWallet", "depositNetwork", "solanaUsdtMint", "solanaRpcEndpoint"] as const;
 
+const BOOLEAN_FIELDS = ["withdrawalsEnabled"] as const;
+
 export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
@@ -54,6 +56,11 @@ export async function PATCH(req: NextRequest) {
   for (const field of STRING_FIELDS) {
     if (body[field] !== undefined) {
       data[field] = String(body[field]).trim() || null;
+    }
+  }
+  for (const field of BOOLEAN_FIELDS) {
+    if (body[field] !== undefined) {
+      data[field] = body[field] === true || body[field] === "true";
     }
   }
 

@@ -99,7 +99,7 @@ export default function DashboardPage() {
       <div className="card">
         <p className="text-sm text-muted uppercase tracking-wide mb-2">Refer & Earn</p>
         <p className="text-xs text-muted mb-3">
-          Get 200 NGC for every friend who registers and verifies their email using your link.
+          Get 500 NGC for every friend who registers and verifies their email using your link.
         </p>
         {data.referralCode && (
           <>

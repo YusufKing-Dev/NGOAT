@@ -3,8 +3,19 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled connection (Supavisor, transaction mode, port 6543) — used
+  // by the running app. Transaction-mode pooling lets many short-lived
+  // serverless function invocations share a small number of real
+  // Postgres connections instead of each opening its own, which is
+  // what was exhausting Supabase's connection cap and causing
+  // intermittent login failures.
+  url       = env("DATABASE_URL")
+  // Direct (unpooled) connection, port 5432 — used ONLY for schema
+  // commands (`prisma db push`, `prisma migrate ...`). Those commands
+  // need a stable, non-pooled connection; running them through the
+  // same session-mode pooler the app uses is what caused the
+  // "MaxClientsInSessionMode" error.
   directUrl = env("DIRECT_URL")
 }
 
@@ -109,7 +120,7 @@ model User {
   // hour per account, independent of the token's own 24h expiry.
   verificationEmailLastSentAt DateTime?
 
-  // Referrals: PlatformConfig.referralBonusCredits (default 200 NGC)
+  // Referrals: PlatformConfig.referralBonusCredits (default 500 NGC)
   // is paid to the referrer once the referred user verifies their
   // email — see app/api/auth/verify/route.ts. referralCode is this
   // user's own shareable code; referredByUserId links back to
@@ -273,7 +284,7 @@ model PlatformConfig {
   // lib/settlement.ts. 0.8 = each correctly predicted leg adds +80%
   // of the stake to the payout (linear growth, not compounding).
   rewardMultiplier     Float @default(0.8)
-  referralBonusCredits Int   @default(200)
+  referralBonusCredits Int   @default(500)
 
   // Accumulator predictions: every slip must have at least this many legs.
   minSlipLegs Int @default(5)
@@ -285,6 +296,13 @@ model PlatformConfig {
   // Daily withdrawal limits, in USDT
   minWithdrawalUsdt    Float @default(5)
   maxDailyWithdrawalUsdt Float @default(100)
+
+  // Master switch: while false, /api/withdrawals rejects every new
+  // request outright (existing PENDING/PAID/REJECTED records are
+  // untouched — this only blocks new submissions). Meant to be
+  // flipped on from the admin Settings tab once the project launches,
+  // no redeploy needed.
+  withdrawalsEnabled Boolean @default(false)
 
   // Solana on-chain deposit config (wallet-connect flow)
   solanaUsdtMint    String? // USDT SPL-token mint address on Solana

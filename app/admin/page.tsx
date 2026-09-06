@@ -104,6 +104,7 @@ type PlatformConfig = {
   stakingDailyRatePct: number;
   minWithdrawalUsdt: number;
   maxDailyWithdrawalUsdt: number;
+  withdrawalsEnabled: boolean;
   solanaUsdtMint: string | null;
   solanaRpcEndpoint: string | null;
 };
@@ -740,20 +741,38 @@ export default function AdminPage() {
         <section className="card">
           <h2 className="text-sm text-muted uppercase tracking-wide mb-3">Platform Settings</h2>
           <form onSubmit={saveConfig} className="space-y-3">
-            {(Object.keys(configForm) as (keyof typeof configForm)[]).map((key) => (
-              <div key={key}>
-                <label className="text-xs text-muted">
-                  {key === "rewardMultiplier"
-                    ? "Reward bonus rate per won leg (additive — e.g. 0.8 = +80% of stake per correct leg, NOT compounding)"
-                    : key}
-                </label>
-                <input
-                  className="input"
-                  value={configForm[key] ?? ""}
-                  onChange={(e) => setConfigForm({ ...configForm, [key]: e.target.value })}
-                />
-              </div>
-            ))}
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
+              <input
+                type="checkbox"
+                id="withdrawalsEnabled"
+                checked={configForm.withdrawalsEnabled === "true"}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, withdrawalsEnabled: e.target.checked ? "true" : "false" })
+                }
+              />
+              <label htmlFor="withdrawalsEnabled" className="text-sm">
+                Withdrawals enabled{" "}
+                <span className="text-xs text-muted">
+                  (unchecked = new withdrawal requests are rejected platform-wide; existing requests untouched)
+                </span>
+              </label>
+            </div>
+            {(Object.keys(configForm) as (keyof typeof configForm)[])
+              .filter((key) => key !== "withdrawalsEnabled")
+              .map((key) => (
+                <div key={key}>
+                  <label className="text-xs text-muted">
+                    {key === "rewardMultiplier"
+                      ? "Reward bonus rate per won leg (additive — e.g. 0.8 = +80% of stake per correct leg, NOT compounding)"
+                      : key}
+                  </label>
+                  <input
+                    className="input"
+                    value={configForm[key] ?? ""}
+                    onChange={(e) => setConfigForm({ ...configForm, [key]: e.target.value })}
+                  />
+                </div>
+              ))}
             <button type="submit" className="btn-primary w-full" disabled={configSaving}>
               {configSaving ? "Saving…" : "Save settings"}
             </button>
