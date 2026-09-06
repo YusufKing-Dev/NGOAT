@@ -9,11 +9,15 @@ export default function WithdrawPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [linkedWallet, setLinkedWallet] = useState<string | null>(null);
+  const [withdrawalsEnabled, setWithdrawalsEnabled] = useState<boolean | null>(null); // null = still loading
 
   useEffect(() => {
     fetch("/api/me")
       .then((r) => r.json())
       .then((d) => setLinkedWallet(d.walletAddress ?? null));
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((d) => setWithdrawalsEnabled(!!d.withdrawalsEnabled));
   }, []);
 
   const walletAddress = publicKey?.toBase58();
@@ -57,7 +61,19 @@ export default function WithdrawPage() {
   return (
     <div className="pt-6 space-y-4">
       <h1 className="scoreboard text-3xl">WITHDRAW USDT</h1>
-      <div className="card">
+
+      {withdrawalsEnabled === false && (
+        <div className="card">
+          <p className="text-sm text-brand font-semibold mb-1">Withdrawals are temporarily closed</p>
+          <p className="text-xs text-muted">
+            Withdrawals will open once the platform officially launches. Everything you've earned is
+            safe and waiting — check back soon.
+          </p>
+        </div>
+      )}
+
+      {withdrawalsEnabled === true && (
+        <div className="card">
         <p className="text-xs text-muted mb-3">
           Minimum $5, maximum $100 per day. Your free signup bonus never counts toward what you
           can withdraw — only balance earned on top of it does.
@@ -101,7 +117,8 @@ export default function WithdrawPage() {
             </button>
           </form>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
