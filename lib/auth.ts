@@ -9,6 +9,7 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
+      id: "credentials",
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "text" },
@@ -25,6 +26,29 @@ export const authOptions: NextAuthOptions = {
         // (NextAuth surfaces this via the `error` query param) instead
         // of a generic "invalid credentials".
         if (!user.emailVerified) throw new Error("EMAIL_NOT_VERIFIED");
+        return { id: user.id, name: user.username, email: user.email, role: user.role } as any;
+      },
+    }),
+    // Separate provider used only by the /admin/login form. Same
+    // credential check as above, but rejects outright — before any
+    // session is ever created — if the account isn't an ADMIN, so a
+    // regular user's correct password still can't get them into the
+    // admin area.
+    CredentialsProvider({
+      id: "admin-credentials",
+      name: "Admin Credentials",
+      credentials: {
+        email: { label: "Email", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
+        if (!user || user.suspended) return null;
+        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
+        if (!valid) return null;
+        if (!user.emailVerified) throw new Error("EMAIL_NOT_VERIFIED");
+        if (user.role !== "ADMIN") throw new Error("NOT_ADMIN");
         return { id: user.id, name: user.username, email: user.email, role: user.role } as any;
       },
     }),
