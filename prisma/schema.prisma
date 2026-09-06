@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -108,7 +109,7 @@ model User {
   // hour per account, independent of the token's own 24h expiry.
   verificationEmailLastSentAt DateTime?
 
-  // Referrals: PlatformConfig.referralBonusCredits (default 500 NGC)
+  // Referrals: PlatformConfig.referralBonusCredits (default 200 NGC)
   // is paid to the referrer once the referred user verifies their
   // email — see app/api/auth/verify/route.ts. referralCode is this
   // user's own shareable code; referredByUserId links back to
@@ -221,9 +222,10 @@ model Prediction {
 }
 
 // An accumulator slip: minimum 3 matches, one stake for the whole slip,
-// ALL legs must win for it to pay out. Reward compounds per leg
-// (stake x rewardMultiplier ^ legCount) so more legs = more risk = more
-// reward, using the same base multiplier as before.
+// ALL legs must win for it to pay out. Reward is ADDITIVE per leg
+// (stake x (1 + legCount x rewardMultiplier)) — each correct leg adds
+// a flat bonus on top of the stake rather than compounding it, so
+// growth stays linear even on long slips. See lib/settlement.ts.
 model PredictionSlip {
   id        String           @id @default(cuid())
   userId    String
@@ -266,8 +268,12 @@ model PlatformConfig {
   signupBonusCredits      Int   @default(20000)
   bonusWageringMultiplier Int   @default(3)
   minBetCredits           Int   @default(5000)
-  rewardMultiplier        Float @default(1.8)
-  referralBonusCredits    Int   @default(500)
+  // Despite the name (kept as-is to avoid a migration), this is an
+  // ADDITIVE per-leg bonus rate, not an exponential multiplier — see
+  // lib/settlement.ts. 0.8 = each correctly predicted leg adds +80%
+  // of the stake to the payout (linear growth, not compounding).
+  rewardMultiplier     Float @default(0.8)
+  referralBonusCredits Int   @default(200)
 
   // Accumulator predictions: every slip must have at least this many legs.
   minSlipLegs Int @default(5)

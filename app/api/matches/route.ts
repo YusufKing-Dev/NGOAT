@@ -27,10 +27,12 @@ export async function POST(req: NextRequest) {
 
   // entryCredits/rewardCredits are legacy display fields only — stake is
   // now chosen per-prediction by the user (see /api/predictions), so
-  // these just record the platform's minimum for reference.
+  // these just record the platform's minimum for reference. rewardCredits
+  // shows the indicative payout for a 1-leg win under the additive
+  // formula (stake x (1 + legs x rewardMultiplier)) — see lib/settlement.ts.
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
   const minBet = config?.minBetCredits ?? 5000;
-  const rewardMultiplier = config?.rewardMultiplier ?? 1.8;
+  const rewardBonusRate = config?.rewardMultiplier ?? 0.8;
 
   const match = await prisma.match.create({
     data: {
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
       kickoff: new Date(kickoff),
       predictionDeadline: new Date(predictionDeadline),
       entryCredits: minBet,
-      rewardCredits: Math.round(minBet * rewardMultiplier),
+      rewardCredits: Math.round(minBet * (1 + rewardBonusRate)),
     },
   });
 

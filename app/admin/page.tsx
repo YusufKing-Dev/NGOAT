@@ -364,6 +364,18 @@ export default function AdminPage() {
     loadAll();
   }
 
+  const [userSearch, setUserSearch] = useState("");
+  const searchLower = userSearch.trim().toLowerCase();
+  const filteredSlips = searchLower
+    ? slips.filter((s) => s.user.username.toLowerCase().includes(searchLower) || s.user.email.toLowerCase().includes(searchLower))
+    : slips;
+  const filteredStakes = searchLower
+    ? stakes.filter((s) => s.user.username.toLowerCase().includes(searchLower) || s.user.email.toLowerCase().includes(searchLower))
+    : stakes;
+  const filteredLedger = searchLower
+    ? ledger.filter((l) => l.user.username.toLowerCase().includes(searchLower) || l.user.email.toLowerCase().includes(searchLower))
+    : ledger;
+
   if (error) return <p className="text-loss pt-10 text-center">{error}</p>;
 
   const pendingDeposits = deposits.filter((d) => d.status === "PENDING").length;
@@ -631,11 +643,22 @@ export default function AdminPage() {
         </section>
       )}
 
+      {(tab === "Predictions" || tab === "Stakes" || tab === "Activity") && (
+        <input
+          className="input"
+          placeholder="Filter by username or email…"
+          value={userSearch}
+          onChange={(e) => setUserSearch(e.target.value)}
+        />
+      )}
+
       {tab === "Predictions" && (
         <section className="card">
-          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">Predictions (slips)</h2>
+          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
+            Predictions (slips) <span className="normal-case text-xs">({filteredSlips.length})</span>
+          </h2>
           <div className="space-y-3">
-            {slips.map((s) => (
+            {filteredSlips.map((s) => (
               <div key={s.id} className="border-b border-white/5 pb-2 text-sm">
                 <p>
                   {s.user.username} ({s.user.email}) · stake {s.stake.toLocaleString()} NGC · status{" "}
@@ -652,16 +675,18 @@ export default function AdminPage() {
                 </ul>
               </div>
             ))}
-            {slips.length === 0 && <p className="text-muted text-sm">No predictions.</p>}
+            {filteredSlips.length === 0 && <p className="text-muted text-sm">No predictions match.</p>}
           </div>
         </section>
       )}
 
       {tab === "Stakes" && (
         <section className="card">
-          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">Staking</h2>
+          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
+            Staking <span className="normal-case text-xs">({filteredStakes.length})</span>
+          </h2>
           <div className="space-y-3">
-            {stakes.map((s) => (
+            {filteredStakes.map((s) => (
               <div key={s.id} className="border-b border-white/5 pb-2 text-sm">
                 <p>
                   {s.user.username} ({s.user.email}) · {s.principal.toLocaleString()} NGC · {s.duration} ·{" "}
@@ -675,7 +700,7 @@ export default function AdminPage() {
                 </p>
               </div>
             ))}
-            {stakes.length === 0 && <p className="text-muted text-sm">No stakes.</p>}
+            {filteredStakes.length === 0 && <p className="text-muted text-sm">No stakes match.</p>}
           </div>
         </section>
       )}
@@ -683,10 +708,13 @@ export default function AdminPage() {
       {tab === "Activity" && (
         <section className="card">
           <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
-            Full Activity Log <span className="normal-case text-xs">(latest 500)</span>
+            Full Activity Log{" "}
+            <span className="normal-case text-xs">
+              ({filteredLedger.length}{!searchLower && " of latest 500"})
+            </span>
           </h2>
           <div className="space-y-2">
-            {ledger.map((l) => (
+            {filteredLedger.map((l) => (
               <div key={l.id} className="border-b border-white/5 pb-2 text-sm">
                 <p>
                   {l.user.username} ({l.user.email}) ·{" "}
@@ -714,7 +742,11 @@ export default function AdminPage() {
           <form onSubmit={saveConfig} className="space-y-3">
             {(Object.keys(configForm) as (keyof typeof configForm)[]).map((key) => (
               <div key={key}>
-                <label className="text-xs text-muted">{key}</label>
+                <label className="text-xs text-muted">
+                  {key === "rewardMultiplier"
+                    ? "Reward bonus rate per won leg (additive — e.g. 0.8 = +80% of stake per correct leg, NOT compounding)"
+                    : key}
+                </label>
                 <input
                   className="input"
                   value={configForm[key] ?? ""}

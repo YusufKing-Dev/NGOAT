@@ -15,9 +15,15 @@ import { PredictionStatus } from "@prisma/client";
  * - Otherwise every leg is WON or VOID:
  *     - If every leg is VOID (all matches in the slip got cancelled),
  *       refund the full stake — there was never a valid bet left.
- *     - Otherwise, reward = stake x rewardMultiplier ^ (number of WON
- *       legs). VOID legs are dropped from the requirement AND from the
- *       multiplier, same as a standard bookmaker accumulator.
+ *     - Otherwise, reward = stake x (1 + wonLegs x rewardBonusRate).
+ *       This is ADDITIVE, not compounding: each correct leg adds a flat
+ *       rewardBonusRate (e.g. 0.8 = +80% of stake) on top of the
+ *       original stake, rather than multiplying the running total.
+ *       That keeps growth linear in the number of legs instead of
+ *       exponential — a deliberate choice after an early exponential
+ *       version (stake x multiplier^legs) produced payouts far larger
+ *       than intended on 4+ leg slips. VOID legs are dropped from the
+ *       requirement AND from the leg count, same as before.
  */
 async function checkSlipCompletion(slipId: string) {
   const slip = await prisma.predictionSlip.findUnique({
@@ -47,9 +53,14 @@ async function checkSlipCompletion(slipId: string) {
     return;
   }
 
+  // NOTE: this field is still named `rewardMultiplier` in the database
+  // (see PlatformConfig in schema.prisma) to avoid a migration, but as
+  // of this change it's used as an ADDITIVE per-leg bonus rate, not an
+  // exponential multiplier. Default 0.8 = each won leg adds +80% of
+  // the original stake.
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-  const multiplier = config?.rewardMultiplier ?? 1.8;
-  const reward = Math.round(slip.stake * Math.pow(multiplier, wonLegs));
+  const bonusRate = config?.rewardMultiplier ?? 0.8;
+  const reward = Math.round(slip.stake * (1 + wonLegs * bonusRate));
 
   await addLedgerEntry({
     userId: slip.userId,
