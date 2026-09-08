@@ -7,7 +7,9 @@ import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   createTransferInstruction,
+  getAccount,
   getMint,
+  TokenAccountNotFoundError,
 } from "@solana/spl-token";
 import { NGOAT_DEPOSIT_WALLET, USDT_MINT_ADDRESS, NGC_PER_USDT, MIN_DEPOSIT_USDT } from "@/lib/solanaConfig";
 
@@ -38,6 +40,31 @@ export default function BuyNgoatPage() {
 
       const senderAta = await getAssociatedTokenAddress(mint, publicKey);
       const recipientAta = await getAssociatedTokenAddress(mint, recipient);
+
+      // Pre-flight check: does this wallet actually hold USDT? A wallet
+      // that has never held USDT has no token account for it at all, and
+      // a raw transfer instruction against a missing/underfunded account
+      // fails wallet-side simulation with a cryptic error. Catching it
+      // here lets us show the real reason instead of "Something went wrong."
+      let senderBalanceRaw = 0n;
+      try {
+        const senderAccount = await getAccount(connection, senderAta);
+        senderBalanceRaw = senderAccount.amount;
+      } catch (e) {
+        if (e instanceof TokenAccountNotFoundError) {
+          setStatus("This wallet has no USDT token account — you need USDT on Solana in this wallet first.");
+          setBusy(false);
+          return;
+        }
+        throw e;
+      }
+
+      if (senderBalanceRaw < amountRaw) {
+        const have = Number(senderBalanceRaw) / 10 ** mintInfo.decimals;
+        setStatus(`Insufficient USDT balance — this wallet has ${have} USDT, need ${usdtAmount}.`);
+        setBusy(false);
+        return;
+      }
 
       const tx = new Transaction();
       const recipientAtaInfo = await connection.getAccountInfo(recipientAta);
@@ -71,11 +98,24 @@ export default function BuyNgoatPage() {
         setStatus(`Success! ${data.creditsIssued.toLocaleString()} NGC credited.`);
       }
     } catch (e: any) {
-      setStatus(
-        e?.message?.includes("User rejected") || e?.message?.includes("rejected")
-          ? "Transaction cancelled."
-          : "Something went wrong. Please try again."
-      );
+      // Always log the real error — swallowing it here is what made this
+      // impossible to debug from the UI alone. Check the browser console
+      // (or Vercel function logs, for server-side failures) for the full
+      // error whenever this fires.
+      console.error("Buy NGC failed:", e);
+
+      const msg: string = e?.message || "";
+      if (msg.includes("User rejected") || msg.includes("rejected")) {
+        setStatus("Transaction cancelled.");
+      } else if (msg.toLowerCase().includes("insufficient")) {
+        setStatus("Insufficient balance to cover this purchase and network fees.");
+      } else if (msg.toLowerCase().includes("blockhash not found") || msg.toLowerCase().includes("expired")) {
+        setStatus("Transaction expired before it was confirmed. Please try again.");
+      } else if (msg.toLowerCase().includes("429") || msg.toLowerCase().includes("rate")) {
+        setStatus("The network is rate-limiting requests right now. Please wait a moment and try again.");
+      } else {
+        setStatus(`Something went wrong: ${msg || "unknown error"}. Check console for details.`);
+      }
     } finally {
       setBusy(false);
     }
