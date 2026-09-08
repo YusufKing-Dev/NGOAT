@@ -1,5 +1,5 @@
 // Public on-chain addresses — safe to commit, these are not secrets.
-export const NGOAT_DEPOSIT_WALLET = "9hKZyLjGB77gzVB1sajaphpPe5r9RHi1yFLYWHm9eyj";
+export const NGOAT_DEPOSIT_WALLET = "9hKZyLjGB77gzVB1sajaphpPe5r9RHi1yFLYWHm9eyj8";
 export const USDT_MINT_ADDRESS = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
 
 export const NGC_PER_USDT = 2000;
