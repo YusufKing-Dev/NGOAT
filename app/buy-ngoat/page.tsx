@@ -46,7 +46,7 @@ export default function BuyNgoatPage() {
       // a raw transfer instruction against a missing/underfunded account
       // fails wallet-side simulation with a cryptic error. Catching it
       // here lets us show the real reason instead of "Something went wrong."
-      let senderBalanceRaw = 0n;
+      let senderBalanceRaw = BigInt(0);
       try {
         const senderAccount = await getAccount(connection, senderAta);
         senderBalanceRaw = senderAccount.amount;
@@ -162,4 +162,4 @@ export default function BuyNgoatPage() {
       )}
     </div>
   );
-}
+          }
