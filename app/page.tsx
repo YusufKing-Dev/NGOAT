@@ -1,8 +1,13 @@
 import Link from "next/link";
 import WhitepaperModal from "@/components/WhitepaperModal";
+import { prisma } from "@/lib/prisma";
 
 const LOGO_URL =
   "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787822761/IMG_20260827_102554_940_tcek9f.jpg";
+
+// Reads live config (signup bonus) — must never be statically
+// pre-rendered at build time with no live DB connection available.
+export const dynamic = "force-dynamic";
 
 const TOKENOMICS = [
   { label: "Total Supply", value: "1,000,000,000 $NGOAT" },
@@ -96,7 +101,10 @@ const ROADMAP = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
+  const signupBonus = config?.signupBonusCredits ?? 20000;
+
   return (
     <div className="pt-8 space-y-10">
       {/* HERO */}
@@ -124,7 +132,7 @@ export default function HomePage() {
         </p>
         <div className="flex flex-col gap-3">
           <Link href="/predictions" className="btn-primary">
-            Join $NGOAT — Get 20,000 NGC Free
+            Join $NGOAT — Get {signupBonus.toLocaleString()} NGC Free
           </Link>
           <WhitepaperModal />
           <button

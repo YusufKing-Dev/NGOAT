@@ -21,5 +21,8 @@ export async function GET() {
     minSlipLegs: config?.minSlipLegs ?? 5,
     referralBonusCredits: config?.referralBonusCredits ?? 500,
     stakingMinCredits: config?.stakingMinCredits ?? 40000,
+    stakingDailyRatePct: config?.stakingDailyRatePct ?? 0.1,
+    signupBonusCredits: config?.signupBonusCredits ?? 20000,
+    usdtToCreditsRate: config?.usdtToCreditsRate ?? 2000,
   });
 }

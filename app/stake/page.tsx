@@ -22,6 +22,7 @@ type StakeRow = {
 export default function StakePage() {
   const [stakes, setStakes] = useState<StakeRow[]>([]);
   const [minStake, setMinStake] = useState(DEFAULT_MIN_STAKE);
+  const [dailyRatePct, setDailyRatePct] = useState(0.1);
   const [amount, setAmount] = useState(DEFAULT_MIN_STAKE);
   const [duration, setDuration] = useState("THREE_MONTHS");
   const [message, setMessage] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export default function StakePage() {
         const live = d.stakingMinCredits ?? DEFAULT_MIN_STAKE;
         setMinStake(live);
         setAmount(live);
+        setDailyRatePct(d.stakingDailyRatePct ?? 0.1);
       });
   }
 
@@ -73,9 +75,9 @@ export default function StakePage() {
     <div className="pt-6 space-y-4">
       <h1 className="scoreboard text-3xl">STAKE NGC</h1>
       <p className="text-xs text-muted">
-        Minimum {minStake.toLocaleString()} NGC. Grows 0.1% daily while locked. No early
-        withdrawal — the full amount (principal + growth) releases automatically when the term
-        ends.
+        Minimum {minStake.toLocaleString()} NGC. Grows {dailyRatePct}% daily while locked. No
+        early withdrawal — the full amount (principal + growth) releases automatically when the
+        term ends.
       </p>
 
       <form onSubmit={submit} className="card space-y-3">

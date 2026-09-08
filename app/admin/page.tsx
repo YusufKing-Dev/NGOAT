@@ -374,7 +374,16 @@ export default function AdminPage() {
     ? stakes.filter((s) => s.user.username.toLowerCase().includes(searchLower) || s.user.email.toLowerCase().includes(searchLower))
     : stakes;
   const filteredLedger = searchLower
-    ? ledger.filter((l) => l.user.username.toLowerCase().includes(searchLower) || l.user.email.toLowerCase().includes(searchLower))
+    ? ledger.filter(
+        (l) =>
+          l.user.username.toLowerCase().includes(searchLower) ||
+          l.user.email.toLowerCase().includes(searchLower) ||
+          l.type.toLowerCase().includes(searchLower) ||
+          l.status.toLowerCase().includes(searchLower) ||
+          (l.description ?? "").toLowerCase().includes(searchLower) ||
+          l.reference.toLowerCase().includes(searchLower) ||
+          String(l.amount).includes(searchLower)
+      )
     : ledger;
 
   if (error) return <p className="text-loss pt-10 text-center">{error}</p>;
@@ -647,10 +656,42 @@ export default function AdminPage() {
       {(tab === "Predictions" || tab === "Stakes" || tab === "Activity") && (
         <input
           className="input"
-          placeholder="Filter by username or email…"
+          placeholder="Filter by username, email, type, amount, reference…"
           value={userSearch}
           onChange={(e) => setUserSearch(e.target.value)}
         />
+      )}
+
+      {tab === "Activity" && (
+        <div className="flex flex-wrap gap-2">
+          {[
+            "ACCOUNT_CREATED",
+            "SIGNUP_BONUS",
+            "DEPOSIT",
+            "REDEMPTION",
+            "PREDICTION_STAKE",
+            "PREDICTION_REWARD",
+            "STAKE_LOCK",
+            "STAKE_RELEASE",
+            "REFERRAL_BONUS",
+            "ADMIN_ADJUSTMENT",
+            "REFUND",
+          ].map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setUserSearch(userSearch === t ? "" : t)}
+              className={
+                "text-xs px-2 py-1 rounded-full border " +
+                (userSearch === t
+                  ? "bg-brand text-black border-brand"
+                  : "border-white/10 text-muted hover:text-ink")
+              }
+            >
+              {t.replaceAll("_", " ")}
+            </button>
+          ))}
+        </div>
       )}
 
       {tab === "Predictions" && (

@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 function RegisterForm() {
@@ -11,6 +11,15 @@ function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [signupBonus, setSignupBonus] = useState(20000);
+
+  useEffect(() => {
+    // Reflect the admin's live signup bonus, never a hardcoded copy
+    // that can drift out of sync with what actually gets paid.
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((d) => setSignupBonus(d.signupBonusCredits ?? 20000));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,7 +54,8 @@ function RegisterForm() {
         <h1 className="scoreboard text-3xl">CHECK YOUR EMAIL</h1>
         <p className="text-muted text-sm">
           We've sent a verification link to <span className="text-ink">{form.email}</span>. Click
-          it to activate your account and log in — your 20,000 NGC bonus is already waiting.
+          it to activate your account and log in — your {signupBonus.toLocaleString()} NGC bonus
+          is already waiting.
         </p>
         <p className="text-xs text-muted">
           Didn't get it? Check spam, or head to the login page to resend it.
@@ -57,7 +67,9 @@ function RegisterForm() {
   return (
     <div className="pt-8">
       <h1 className="scoreboard text-3xl mb-1">JOIN NGOAT</h1>
-      <p className="text-muted text-sm mb-6">Get 20,000 NGC free the moment you verify your email.</p>
+      <p className="text-muted text-sm mb-6">
+        Get {signupBonus.toLocaleString()} NGC free the moment you verify your email.
+      </p>
 
       <form onSubmit={handleSubmit} className="auth-form">
         <span className="input-span">
