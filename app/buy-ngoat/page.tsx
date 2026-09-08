@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction, SendTransactionError } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
@@ -98,23 +98,52 @@ export default function BuyNgoatPage() {
         setStatus(`Success! ${data.creditsIssued.toLocaleString()} NGC credited.`);
       }
     } catch (e: any) {
-      // Always log the real error — swallowing it here is what made this
-      // impossible to debug from the UI alone. Check the browser console
-      // (or Vercel function logs, for server-side failures) for the full
-      // error whenever this fires.
+      // Always log the real error for environments where a console is
+      // reachable (desktop browser). On mobile, inside Phantom's in-app
+      // browser, there's no dev console available at all — so the
+      // status message below has to carry the real diagnostic itself.
       console.error("Buy NGC failed:", e);
 
-      const msg: string = e?.message || "";
-      if (msg.includes("User rejected") || msg.includes("rejected")) {
+      // SendTransactionError (thrown by sendTransaction/simulation
+      // failures) carries the actual on-chain simulation logs, which
+      // are far more useful than the generic wrapper message — e.g.
+      // "insufficient funds", "invalid account data", a specific
+      // program error code, etc.
+      let detail = "";
+      if (e instanceof SendTransactionError) {
+        try {
+          const logs = await e.getLogs(connection);
+          if (logs && logs.length) detail = logs.join(" | ");
+        } catch {
+          // ignore — fall through to generic message extraction below
+        }
+      }
+
+      if (!detail) {
+        if (typeof e === "string") detail = e;
+        else if (e?.message) detail = e.message;
+        else if (e?.error?.message) detail = e.error.message;
+        else if (e?.name) detail = e.name;
+        else {
+          try {
+            detail = JSON.stringify(e);
+          } catch {
+            detail = String(e);
+          }
+        }
+      }
+
+      const msg = (detail || "").toLowerCase();
+      if (msg.includes("user rejected") || msg.includes("rejected")) {
         setStatus("Transaction cancelled.");
-      } else if (msg.toLowerCase().includes("insufficient")) {
-        setStatus("Insufficient balance to cover this purchase and network fees.");
-      } else if (msg.toLowerCase().includes("blockhash not found") || msg.toLowerCase().includes("expired")) {
+      } else if (msg.includes("insufficient")) {
+        setStatus(`Insufficient balance to cover this purchase and network fees. (${detail})`);
+      } else if (msg.includes("blockhash not found") || msg.includes("expired")) {
         setStatus("Transaction expired before it was confirmed. Please try again.");
-      } else if (msg.toLowerCase().includes("429") || msg.toLowerCase().includes("rate")) {
+      } else if (msg.includes("429") || msg.includes("rate")) {
         setStatus("The network is rate-limiting requests right now. Please wait a moment and try again.");
       } else {
-        setStatus(`Something went wrong: ${msg || "unknown error"}. Check console for details.`);
+        setStatus(`Something went wrong: ${detail || "no error details available"}`);
       }
     } finally {
       setBusy(false);
@@ -162,4 +191,4 @@ export default function BuyNgoatPage() {
       )}
     </div>
   );
-          }
+}
