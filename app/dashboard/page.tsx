@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<MeData | null>(null);
   const [copied, setCopied] = useState(false);
+  const [referralBonus, setReferralBonus] = useState(500);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -25,6 +26,11 @@ export default function DashboardPage() {
       fetch("/api/me")
         .then((r) => r.json())
         .then(setData);
+      // Reflect the admin's live referral bonus, never a hardcoded
+      // copy that can drift out of sync with what actually gets paid.
+      fetch("/api/config")
+        .then((r) => r.json())
+        .then((d) => setReferralBonus(d.referralBonusCredits ?? 500));
     }
   }, [status, router]);
 
@@ -99,7 +105,8 @@ export default function DashboardPage() {
       <div className="card">
         <p className="text-sm text-muted uppercase tracking-wide mb-2">Refer & Earn</p>
         <p className="text-xs text-muted mb-3">
-          Get 500 NGC for every friend who registers and verifies their email using your link.
+          Get {referralBonus.toLocaleString()} NGC for every friend who registers and verifies
+          their email using your link.
         </p>
         {data.referralCode && (
           <>

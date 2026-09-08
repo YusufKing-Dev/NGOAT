@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-const MIN_STAKE = 40000;
+const DEFAULT_MIN_STAKE = 40000;
 const DURATIONS: { value: string; label: string }[] = [
   { value: "THREE_MONTHS", label: "3 months" },
   { value: "SIX_MONTHS", label: "6 months" },
@@ -21,7 +21,8 @@ type StakeRow = {
 
 export default function StakePage() {
   const [stakes, setStakes] = useState<StakeRow[]>([]);
-  const [amount, setAmount] = useState(MIN_STAKE);
+  const [minStake, setMinStake] = useState(DEFAULT_MIN_STAKE);
+  const [amount, setAmount] = useState(DEFAULT_MIN_STAKE);
   const [duration, setDuration] = useState("THREE_MONTHS");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,6 +31,15 @@ export default function StakePage() {
     fetch("/api/stakes")
       .then((r) => r.json())
       .then((d) => setStakes(d.stakes ?? []));
+    // Always reflect the admin's live minimum, never a stale hardcoded
+    // copy that can drift out of sync with what the server enforces.
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((d) => {
+        const live = d.stakingMinCredits ?? DEFAULT_MIN_STAKE;
+        setMinStake(live);
+        setAmount(live);
+      });
   }
 
   useEffect(load, []);
@@ -63,7 +73,7 @@ export default function StakePage() {
     <div className="pt-6 space-y-4">
       <h1 className="scoreboard text-3xl">STAKE NGC</h1>
       <p className="text-xs text-muted">
-        Minimum {MIN_STAKE.toLocaleString()} NGC. Grows 0.1% daily while locked. No early
+        Minimum {minStake.toLocaleString()} NGC. Grows 0.1% daily while locked. No early
         withdrawal — the full amount (principal + growth) releases automatically when the term
         ends.
       </p>
@@ -72,7 +82,7 @@ export default function StakePage() {
         <label className="text-sm text-muted">Amount (NGC)</label>
         <input
           type="number"
-          min={MIN_STAKE}
+          min={minStake}
           step={1000}
           className="input"
           value={amount}

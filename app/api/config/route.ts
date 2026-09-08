@@ -17,5 +17,9 @@ export async function GET() {
     withdrawalsEnabled: config?.withdrawalsEnabled ?? false,
     minWithdrawalUsdt: config?.minWithdrawalUsdt ?? 5,
     maxDailyWithdrawalUsdt: config?.maxDailyWithdrawalUsdt ?? 100,
+    minBetCredits: config?.minBetCredits ?? 5000,
+    minSlipLegs: config?.minSlipLegs ?? 5,
+    referralBonusCredits: config?.referralBonusCredits ?? 500,
+    stakingMinCredits: config?.stakingMinCredits ?? 40000,
   });
 }

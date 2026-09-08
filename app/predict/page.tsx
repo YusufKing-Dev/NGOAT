@@ -12,13 +12,15 @@ type Match = {
 
 type Pick = "HOME" | "DRAW" | "AWAY";
 
-const MIN_STAKE = 5000;
-const MIN_LEGS = 5;
+const DEFAULT_MIN_STAKE = 5000;
+const DEFAULT_MIN_LEGS = 5;
 
 export default function PredictPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [picks, setPicks] = useState<Record<string, Pick>>({});
-  const [stake, setStake] = useState(MIN_STAKE);
+  const [minStake, setMinStake] = useState(DEFAULT_MIN_STAKE);
+  const [minLegs, setMinLegs] = useState(DEFAULT_MIN_LEGS);
+  const [stake, setStake] = useState(DEFAULT_MIN_STAKE);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -26,6 +28,18 @@ export default function PredictPage() {
     fetch("/api/matches")
       .then((r) => r.json())
       .then((d) => setMatches(d.matches ?? []));
+    // Pull the live platform-config values so this page always matches
+    // whatever the admin has set — never a hardcoded copy that can
+    // drift out of sync with what the server actually enforces.
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((d) => {
+        const liveMinStake = d.minBetCredits ?? DEFAULT_MIN_STAKE;
+        const liveMinLegs = d.minSlipLegs ?? DEFAULT_MIN_LEGS;
+        setMinStake(liveMinStake);
+        setMinLegs(liveMinLegs);
+        setStake(liveMinStake);
+      });
   }
 
   useEffect(load, []);
@@ -45,12 +59,12 @@ export default function PredictPage() {
   const legCount = Object.keys(picks).length;
 
   async function submitSlip() {
-    if (legCount < MIN_LEGS) {
-      setMessage(`Pick at least ${MIN_LEGS} matches to build an accumulator.`);
+    if (legCount < minLegs) {
+      setMessage(`Pick at least ${minLegs} matches to build an accumulator.`);
       return;
     }
-    if (stake < MIN_STAKE) {
-      setMessage(`Minimum stake is ${MIN_STAKE.toLocaleString()} NGC.`);
+    if (stake < minStake) {
+      setMessage(`Minimum stake is ${minStake.toLocaleString()} NGC.`);
       return;
     }
     const legs = Object.entries(picks).map(([matchId, pick]) => ({ matchId, pick }));
@@ -93,8 +107,8 @@ export default function PredictPage() {
     <div className="pt-6 space-y-4 pb-28">
       <h1 className="scoreboard text-3xl">FOOTBALL PREDICTIONS</h1>
       <p className="text-xs text-muted">
-        Accumulator only — pick at least {MIN_LEGS} matches, minimum stake{" "}
-        {MIN_STAKE.toLocaleString()} NGC. Every pick must win to get paid.
+        Accumulator only — pick at least {minLegs} matches, minimum stake{" "}
+        {minStake.toLocaleString()} NGC. Every pick must win to get paid.
       </p>
       {message && <p className="text-sm text-brand">{message}</p>}
 
@@ -150,12 +164,12 @@ export default function PredictPage() {
         <div className="max-w-md mx-auto space-y-2">
           <div className="flex justify-between text-xs text-muted">
             <span>
-              {legCount} match{legCount === 1 ? "" : "es"} selected (min {MIN_LEGS})
+              {legCount} match{legCount === 1 ? "" : "es"} selected (min {minLegs})
             </span>
           </div>
           <input
             type="number"
-            min={MIN_STAKE}
+            min={minStake}
             step={500}
             value={stake}
             onChange={(e) => setStake(Math.round(Number(e.target.value)))}
@@ -164,7 +178,7 @@ export default function PredictPage() {
           />
           <button
             onClick={submitSlip}
-            disabled={busy || legCount < MIN_LEGS}
+            disabled={busy || legCount < minLegs}
             className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {busy ? "Placing…" : `Place Accumulator (${legCount})`}
