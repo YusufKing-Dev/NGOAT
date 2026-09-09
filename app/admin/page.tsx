@@ -367,6 +367,48 @@ export default function AdminPage() {
 
   const [userSearch, setUserSearch] = useState("");
   const searchLower = userSearch.trim().toLowerCase();
+
+  const filteredUsers = searchLower
+    ? users.filter(
+        (u) =>
+          u.username.toLowerCase().includes(searchLower) ||
+          u.email.toLowerCase().includes(searchLower) ||
+          (u.walletAddress ?? "").toLowerCase().includes(searchLower) ||
+          u.role.toLowerCase().includes(searchLower)
+      )
+    : users;
+  const filteredDeposits = searchLower
+    ? deposits.filter(
+        (d) =>
+          d.user.username.toLowerCase().includes(searchLower) ||
+          d.user.email.toLowerCase().includes(searchLower) ||
+          d.txHash.toLowerCase().includes(searchLower) ||
+          d.network.toLowerCase().includes(searchLower) ||
+          d.status.toLowerCase().includes(searchLower)
+      )
+    : deposits;
+  const filteredWithdrawals = searchLower
+    ? withdrawals.filter(
+        (w) =>
+          w.user.username.toLowerCase().includes(searchLower) ||
+          w.user.email.toLowerCase().includes(searchLower) ||
+          w.walletAddress.toLowerCase().includes(searchLower) ||
+          w.network.toLowerCase().includes(searchLower) ||
+          w.status.toLowerCase().includes(searchLower)
+      )
+    : withdrawals;
+  const filteredMatches = searchLower
+    ? matches.filter(
+        (m) =>
+          m.homeTeam.toLowerCase().includes(searchLower) ||
+          m.awayTeam.toLowerCase().includes(searchLower) ||
+          m.status.toLowerCase().includes(searchLower)
+      )
+    : matches;
+  const filteredConfigKeys = (Object.keys(configForm) as (keyof typeof configForm)[])
+    .filter((key) => key !== "withdrawalsEnabled")
+    .filter((key) => !searchLower || key.toLowerCase().includes(searchLower));
+
   const filteredSlips = searchLower
     ? slips.filter((s) => s.user.username.toLowerCase().includes(searchLower) || s.user.email.toLowerCase().includes(searchLower))
     : slips;
@@ -406,7 +448,10 @@ export default function AdminPage() {
           return (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                setUserSearch("");
+              }}
               className={`whitespace-nowrap text-xs font-semibold tracking-wide px-4 py-2 rounded-lg transition ${
                 tab === t ? "btn-primary" : "btn-secondary"
               }`}
@@ -418,13 +463,32 @@ export default function AdminPage() {
         })}
       </div>
 
+      <input
+        className="input"
+        placeholder={
+          tab === "Users"
+            ? "Filter by username, email, wallet, role…"
+            : tab === "Deposits"
+            ? "Filter by username, email, tx hash, network, status…"
+            : tab === "Withdrawals"
+            ? "Filter by username, email, wallet, network, status…"
+            : tab === "Matches"
+            ? "Filter by team or status…"
+            : tab === "Settings"
+            ? "Filter settings fields…"
+            : "Filter by username, email, type, amount, reference…"
+        }
+        value={userSearch}
+        onChange={(e) => setUserSearch(e.target.value)}
+      />
+
       {tab === "Users" && (
         <section className="card">
           <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
-            Accounts <span className="normal-case text-xs">({users.length})</span>
+            Accounts <span className="normal-case text-xs">({filteredUsers.length})</span>
           </h2>
           <div className="space-y-3">
-            {users.map((u) => (
+            {filteredUsers.map((u) => (
               <div key={u.id} className="border-b border-white/5 pb-3 text-sm">
                 {editingUserId === u.id ? (
                   <div className="space-y-2">
@@ -506,16 +570,18 @@ export default function AdminPage() {
                 )}
               </div>
             ))}
-            {users.length === 0 && <p className="text-muted text-sm">No users.</p>}
+            {filteredUsers.length === 0 && <p className="text-muted text-sm">No users match.</p>}
           </div>
         </section>
       )}
 
       {tab === "Deposits" && (
         <section className="card">
-          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">Deposits</h2>
+          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
+            Deposits <span className="normal-case text-xs">({filteredDeposits.length})</span>
+          </h2>
           <div className="space-y-3">
-            {deposits.map((d) => (
+            {filteredDeposits.map((d) => (
               <div key={d.id} className="border-b border-white/5 pb-2 text-sm">
                 {editingDepositId === d.id ? (
                   <div className="space-y-2">
@@ -581,16 +647,18 @@ export default function AdminPage() {
                 )}
               </div>
             ))}
-            {deposits.length === 0 && <p className="text-muted text-sm">No deposits.</p>}
+            {filteredDeposits.length === 0 && <p className="text-muted text-sm">No deposits match.</p>}
           </div>
         </section>
       )}
 
       {tab === "Withdrawals" && (
         <section className="card">
-          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">Withdrawals</h2>
+          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
+            Withdrawals <span className="normal-case text-xs">({filteredWithdrawals.length})</span>
+          </h2>
           <div className="space-y-3">
-            {withdrawals.map((w) => (
+            {filteredWithdrawals.map((w) => (
               <div key={w.id} className="border-b border-white/5 pb-2 text-sm">
                 {editingWithdrawalId === w.id ? (
                   <div className="space-y-2">
@@ -648,18 +716,9 @@ export default function AdminPage() {
                 )}
               </div>
             ))}
-            {withdrawals.length === 0 && <p className="text-muted text-sm">No withdrawals.</p>}
+            {filteredWithdrawals.length === 0 && <p className="text-muted text-sm">No withdrawals match.</p>}
           </div>
         </section>
-      )}
-
-      {(tab === "Predictions" || tab === "Stakes" || tab === "Activity") && (
-        <input
-          className="input"
-          placeholder="Filter by username, email, type, amount, reference…"
-          value={userSearch}
-          onChange={(e) => setUserSearch(e.target.value)}
-        />
       )}
 
       {tab === "Activity" && (
@@ -773,7 +832,9 @@ export default function AdminPage() {
                 </p>
               </div>
             ))}
-            {ledger.length === 0 && <p className="text-muted text-sm">No activity yet.</p>}
+            {filteredLedger.length === 0 && (
+              <p className="text-muted text-sm">{searchLower ? "No activity matches." : "No activity yet."}</p>
+            )}
           </div>
         </section>
       )}
@@ -798,9 +859,7 @@ export default function AdminPage() {
                 </span>
               </label>
             </div>
-            {(Object.keys(configForm) as (keyof typeof configForm)[])
-              .filter((key) => key !== "withdrawalsEnabled")
-              .map((key) => (
+            {filteredConfigKeys.map((key) => (
                 <div key={key}>
                   <label className="text-xs text-muted">
                     {key === "rewardMultiplier"
@@ -814,6 +873,9 @@ export default function AdminPage() {
                   />
                 </div>
               ))}
+            {filteredConfigKeys.length === 0 && searchLower && (
+              <p className="text-muted text-sm">No settings fields match "{userSearch}".</p>
+            )}
             <button type="submit" className="btn-primary w-full" disabled={configSaving}>
               {configSaving ? "Saving…" : "Save settings"}
             </button>
@@ -863,9 +925,11 @@ export default function AdminPage() {
           </section>
 
           <section className="card">
-            <h2 className="text-sm text-muted uppercase tracking-wide mb-3">Matches</h2>
+            <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
+              Matches <span className="normal-case text-xs">({filteredMatches.length})</span>
+            </h2>
             <div className="space-y-3">
-              {matches.map((m) => (
+              {filteredMatches.map((m) => (
                 <div key={m.id} className="border-b border-white/5 pb-2 text-sm">
                   <p>
                     {m.homeTeam} vs {m.awayTeam} · {m.status}
@@ -877,11 +941,11 @@ export default function AdminPage() {
                   )}
                 </div>
               ))}
-              {matches.length === 0 && <p className="text-muted text-sm">No matches.</p>}
+              {filteredMatches.length === 0 && <p className="text-muted text-sm">No matches found.</p>}
             </div>
           </section>
         </>
       )}
     </div>
   );
-}
+  }
