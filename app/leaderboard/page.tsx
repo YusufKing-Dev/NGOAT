@@ -22,7 +22,6 @@ export default function LeaderboardPage() {
             <span className="text-muted w-6">{i + 1}</span>
             <span className="flex-1">{r.username}</span>
             <span className="text-brand scoreboard">{r.points.toLocaleString()}</span>
-            <span className="text-muted w-16 text-right">{r.wins} wins</span>
           </div>
         ))}
       </div>
