@@ -25,7 +25,7 @@ import { PredictionStatus } from "@prisma/client";
  *       than intended on 4+ leg slips. VOID legs are dropped from the
  *       requirement AND from the leg count, same as before.
  */
-async function checkSlipCompletion(slipId: string) {
+export async function checkSlipCompletion(slipId: string) {
   const slip = await prisma.predictionSlip.findUnique({
     where: { id: slipId },
     include: { legs: true },

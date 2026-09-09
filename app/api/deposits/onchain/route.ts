@@ -24,14 +24,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "BELOW_MIN_DEPOSIT" }, { status: 400 });
   }
 
+  const connection = new Connection(getRpcEndpoint(), "confirmed");
+
   // App-level idempotency check (fast path). The DB's unique constraint
   // on txHash is the real guarantee against a double-credit race.
-  const already = await prisma.depositRequest.findUnique({ where: { txHash: signature } });
+  // Wrapped: a transient DB error here must not crash into a raw 500 —
+  // the person may have already sent real USDT on-chain by this point,
+  // so they need a clear, retryable JSON response, not a blank failure.
+  let already;
+  try {
+    already = await prisma.depositRequest.findUnique({ where: { txHash: signature } });
+  } catch {
+    return NextResponse.json(
+      { error: "DB_UNAVAILABLE", signature },
+      { status: 503 }
+    );
+  }
   if (already) {
     return NextResponse.json({ error: "ALREADY_CREDITED" }, { status: 400 });
   }
-
-  const connection = new Connection(getRpcEndpoint(), "confirmed");
 
   let tx;
   try {

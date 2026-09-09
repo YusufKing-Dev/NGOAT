@@ -366,6 +366,32 @@ export default function AdminPage() {
   }
 
   const [userSearch, setUserSearch] = useState("");
+  const [reconcileStatus, setReconcileStatus] = useState<string | null>(null);
+  const [reconcileBusy, setReconcileBusy] = useState(false);
+
+  async function reconcileSlips() {
+    setReconcileBusy(true);
+    setReconcileStatus(null);
+    try {
+      const res = await fetch("/api/admin/reconcile-slips", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setReconcileStatus(data?.error ?? "Failed to reconcile.");
+      } else {
+        setReconcileStatus(
+          `Checked ${data.checked} stranded slip(s), fixed ${data.fixed}.` +
+            (data.errors?.length ? ` ${data.errors.length} error(s) — see console.` : "")
+        );
+        if (data.errors?.length) console.error("Reconcile errors:", data.errors);
+        loadAll();
+      }
+    } catch {
+      setReconcileStatus("Network error.");
+    } finally {
+      setReconcileBusy(false);
+    }
+  }
+
   const searchLower = userSearch.trim().toLowerCase();
 
   const filteredUsers = searchLower
@@ -758,6 +784,19 @@ export default function AdminPage() {
           <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
             Predictions (slips) <span className="normal-case text-xs">({filteredSlips.length})</span>
           </h2>
+          <div className="mb-3 flex items-center gap-3">
+            <button
+              onClick={reconcileSlips}
+              disabled={reconcileBusy}
+              className="btn-secondary text-xs py-1.5 px-3"
+            >
+              {reconcileBusy ? "Checking…" : "Fix stranded slips"}
+            </button>
+            <span className="text-xs text-muted">
+              Pays out any slip where every leg already resolved but the payout never landed.
+            </span>
+          </div>
+          {reconcileStatus && <p className="text-xs text-brand mb-3">{reconcileStatus}</p>}
           <div className="space-y-3">
             {filteredSlips.map((s) => (
               <div key={s.id} className="border-b border-white/5 pb-2 text-sm">
