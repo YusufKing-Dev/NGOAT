@@ -23,7 +23,13 @@ const NUMERIC_FIELDS = [
   "maxDailyWithdrawalUsdt",
 ] as const;
 
-const STRING_FIELDS = ["depositWallet", "depositNetwork", "solanaUsdtMint", "solanaRpcEndpoint"] as const;
+const STRING_FIELDS = [
+  "depositWallet",
+  "depositNetwork",
+  "solanaUsdtMint",
+  "solanaRpcEndpoint",
+  "blockedEmailDomains",
+] as const;
 
 const BOOLEAN_FIELDS = ["withdrawalsEnabled"] as const;
 

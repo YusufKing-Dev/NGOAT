@@ -307,4 +307,23 @@ model PlatformConfig {
   // Solana on-chain deposit config (wallet-connect flow)
   solanaUsdtMint    String? // USDT SPL-token mint address on Solana
   solanaRpcEndpoint String? // e.g. an Alchemy/Helius RPC URL
+
+  // Comma-separated extra disposable-email domains to block at
+  // registration, on top of the built-in list in lib/security.ts.
+  // Lets new throwaway-email services get blocked from the admin
+  // Settings tab the moment they're spotted, no redeploy needed.
+  blockedEmailDomains String?
+}
+
+// One row per registration attempt (successful or rejected), used to
+// rate-limit /api/auth/register by IP. Deliberately just an IP + a
+// timestamp — nothing else needs to be stored here. Rows older than
+// the rate-limit window are pruned opportunistically every time a
+// check runs, so this table never grows unbounded.
+model RegistrationAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
 }

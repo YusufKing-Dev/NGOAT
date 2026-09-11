@@ -4,16 +4,40 @@ import { randomBytes, randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { issueSignupBonus } from "@/lib/ledger";
 import { sendVerificationEmail } from "@/lib/email";
+import { checkRateLimit, getClientIp, isDisposableEmail, isPlausibleEmail } from "@/lib/security";
 
 function generateReferralCode(): string {
   return randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
 export async function POST(req: NextRequest) {
-  const { username, email, password, referralCode } = await req.json();
+  const { username, email, password, referralCode, website } = await req.json();
+
+  // Honeypot: a hidden field real users never see or fill in. Simple
+  // bots that blindly fill every form field trip this; humans never
+  // do. Rejected as a generic INVALID_INPUT rather than a distinct
+  // error, so a bot scraping error messages can't detect and adapt
+  // around the honeypot specifically.
+  if (website) {
+    return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
+  }
 
   if (!username || !email || !password || password.length < 8) {
     return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
+  }
+
+  if (!isPlausibleEmail(email)) {
+    return NextResponse.json({ error: "INVALID_EMAIL" }, { status: 400 });
+  }
+
+  const ip = getClientIp(req);
+  const withinLimit = await checkRateLimit(ip, "register", 5, 60 * 60 * 1000); // 5 per hour per IP
+  if (!withinLimit) {
+    return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429 });
+  }
+
+  if (await isDisposableEmail(email)) {
+    return NextResponse.json({ error: "DISPOSABLE_EMAIL" }, { status: 400 });
   }
 
   const existing = await prisma.user.findFirst({

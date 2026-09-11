@@ -107,6 +107,7 @@ type PlatformConfig = {
   withdrawalsEnabled: boolean;
   solanaUsdtMint: string | null;
   solanaRpcEndpoint: string | null;
+  blockedEmailDomains: string | null;
 };
 
 const TABS = ["Users", "Deposits", "Withdrawals", "Predictions", "Stakes", "Activity", "Matches", "Settings"] as const;
@@ -903,6 +904,8 @@ export default function AdminPage() {
                   <label className="text-xs text-muted">
                     {key === "rewardMultiplier"
                       ? "Reward bonus rate per won leg (additive — e.g. 0.8 = +80% of stake per correct leg, NOT compounding)"
+                      : key === "blockedEmailDomains"
+                      ? "Extra blocked email domains at registration, comma-separated (e.g. fakemail.com, spamtrap.io) — on top of the built-in disposable-email list"
                       : key}
                   </label>
                   <input

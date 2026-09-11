@@ -2,6 +2,19 @@ import { NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
+import { checkRateLimit } from "./security";
+
+/**
+ * NextAuth's authorize() receives req.headers as a plain object (not
+ * a Fetch API Headers instance), so this is a small local adapter
+ * rather than reusing lib/security's getClientIp, which expects the
+ * Fetch Request shape used by ordinary API routes.
+ */
+function ipFromAuthReq(req: { headers?: Record<string, string> } | undefined): string {
+  const forwarded = req?.headers?.["x-forwarded-for"];
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return req?.headers?.["x-real-ip"] ?? "unknown";
+}
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -15,8 +28,14 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+        const ip = ipFromAuthReq(req as any);
+        // 10 attempts per IP per 15 minutes — generous for a genuine
+        // user who mistypes their password a few times, but shuts
+        // down scripted brute-forcing.
+        const withinLimit = await checkRateLimit(ip, "login", 10, 15 * 60 * 1000);
+        if (!withinLimit) throw new Error("RATE_LIMITED");
         const user = await prisma.user.findUnique({ where: { email: credentials.email } });
         if (!user || user.suspended) return null;
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
@@ -41,8 +60,11 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+        const ip = ipFromAuthReq(req as any);
+        const withinLimit = await checkRateLimit(ip, "admin-login", 10, 15 * 60 * 1000);
+        if (!withinLimit) throw new Error("RATE_LIMITED");
         const user = await prisma.user.findUnique({ where: { email: credentials.email } });
         if (!user || user.suspended) return null;
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);

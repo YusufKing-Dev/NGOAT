@@ -8,10 +8,19 @@ function RegisterForm() {
 
   const [form, setForm] = useState({ username: "", email: "", password: "" });
   const [refCodeInput, setRefCodeInput] = useState(refFromUrl);
+  const [website, setWebsite] = useState(""); // honeypot — real users never see or fill this
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [signupBonus, setSignupBonus] = useState(20000);
+
+  const ERROR_MESSAGES: Record<string, string> = {
+    INVALID_INPUT: "Please fill in every field (password needs at least 8 characters).",
+    INVALID_EMAIL: "That email address doesn't look right.",
+    DISPOSABLE_EMAIL: "Please use a permanent email address — temporary/disposable addresses aren't accepted.",
+    USER_ALREADY_EXISTS: "That email or username is already registered.",
+    RATE_LIMITED: "Too many attempts from this connection. Please try again in a little while.",
+  };
 
   useEffect(() => {
     // Reflect the admin's live signup bonus, never a hardcoded copy
@@ -32,11 +41,12 @@ function RegisterForm() {
         body: JSON.stringify({
           ...form,
           referralCode: refCodeInput.trim() || undefined,
+          website,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Something went wrong");
+        setError(ERROR_MESSAGES[data.error] ?? "Something went wrong");
         setLoading(false);
         return;
       }
@@ -120,6 +130,23 @@ function RegisterForm() {
           />
         </span>
         {error && <p className="text-loss text-sm">{error}</p>}
+        {/* Honeypot — invisible to real users, tabIndex/aria-hidden keep
+            it out of keyboard and screen-reader navigation. Simple bots
+            that fill every field in the DOM trip this; humans never do. */}
+        <span
+          aria-hidden="true"
+          style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}
+        >
+          <label htmlFor="website">Website</label>
+          <input
+            id="website"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+          />
+        </span>
         <button type="submit" disabled={loading} className="submit">
           {loading ? "Creating account…" : "Create account"}
         </button>
