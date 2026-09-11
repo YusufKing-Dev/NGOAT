@@ -209,13 +209,25 @@ export default async function HomePage() {
               Predict match outcomes, compete on the leaderboard, redeem winnings.
             </p>
           </Link>
-          <div className="card">
-            <p className="text-xs text-brand uppercase tracking-wide mb-1">
-              Monthly staking loading.....
-            </p>
-            <h3 className="font-semibold mb-1 text-ink">Stake to earn more</h3>
+          <Link href="/stake" className="card block hover:opacity-90 transition">
+            <p className="text-xs text-brand uppercase tracking-wide mb-1">Live now</p>
+            <h3 className="font-semibold mb-1 text-ink">💰 Stake to Earn</h3>
             <p className="text-sm text-muted">
-              Additional competitions and ecosystem utilities as NGOAT expands.
+              Lock NGC for a fixed term and grow your balance automatically over time.
+            </p>
+          </Link>
+          <div className="card">
+            <p className="text-xs text-muted uppercase tracking-wide mb-1">Coming soon</p>
+            <h3 className="font-semibold mb-1 text-ink">🎡 Spin the Wheel</h3>
+            <p className="text-sm text-muted">
+              Spin for a shot at a bigger payout — land the right segment and win big.
+            </p>
+          </div>
+          <div className="card">
+            <p className="text-xs text-muted uppercase tracking-wide mb-1">Coming soon</p>
+            <h3 className="font-semibold mb-1 text-ink">🎯 Weekly Draw</h3>
+            <p className="text-sm text-muted">
+              Pick your number once a week for a shot at the jackpot.
             </p>
           </div>
         </div>
