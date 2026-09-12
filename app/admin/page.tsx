@@ -762,6 +762,10 @@ export default function AdminPage() {
             "REFERRAL_BONUS",
             "ADMIN_ADJUSTMENT",
             "REFUND",
+            "SPIN_COST",
+            "SPIN_PAYOUT",
+            "NUMBER_PICK_STAKE",
+            "NUMBER_PICK_PAYOUT",
           ].map((t) => (
             <button
               key={t}

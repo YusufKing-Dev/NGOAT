@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/import-fixtures", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/import-fixtures", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/settle-number-pick", "schedule": "5 0 * * *" }
   ]
 }

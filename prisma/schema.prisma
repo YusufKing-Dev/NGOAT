@@ -35,6 +35,10 @@ enum LedgerType {
   STAKE_LOCK
   STAKE_RELEASE
   REFERRAL_BONUS
+  SPIN_COST
+  SPIN_PAYOUT
+  NUMBER_PICK_STAKE
+  NUMBER_PICK_PAYOUT
 }
 
 enum LedgerStatus {
@@ -144,6 +148,12 @@ model User {
   predictions     Prediction[]
   predictionSlips PredictionSlip[]
   stakes          Stake[]
+  spinPlays       SpinPlay[]
+  numberPickEntries NumberPickEntry[]
+  // Earned by landing the Bonus segment on Spin the Wheel. Tracked
+  // server-side (never trust a client's claim of "this is a free
+  // spin") — consumed one at a time by playSpin() in lib/games.ts.
+  freeSpinsAvailable Int @default(0)
 }
 
 // Source of truth for balances. Never store/edit a raw balance column —
@@ -313,6 +323,75 @@ model PlatformConfig {
   // Lets new throwaway-email services get blocked from the admin
   // Settings tab the moment they're spotted, no redeploy needed.
   blockedEmailDomains String?
+
+  // NGOAT Spin the Wheel and NGOAT Number Pick. Both are only reachable
+  // by direct URL for now (/spinthewheel, /numberpick) — no nav links,
+  // no landing-page status change, no buttons on the predict page —
+  // until they're ready for a public launch. gamesEnabled is a single
+  // kill switch for both together; the per-game switches underneath
+  // let either be pulled independently without touching the other.
+  gamesEnabled      Boolean @default(true)
+  spinEnabled       Boolean @default(true)
+  numberPickEnabled Boolean @default(true)
+
+  // Spin: fixed cost per spin. Segment odds/payouts live in
+  // lib/games.ts (not admin-editable yet — see comment there).
+  spinCostNgc Int @default(1000)
+
+  // Number Pick: one draw per week, one number per person, minimum
+  // stake, and the same additive-per-leg payout mechanic as football
+  // predictions — but with its OWN multiplier, kept independent so
+  // tuning football's rate never silently changes this game too.
+  // (19 = a correct pick pays stake + 19x stake = 20x total.)
+  numberPickMinStake      Int @default(10000)
+  numberPickRangeMax      Int @default(50)
+  numberPickRewardMultiplier Float @default(1.8)
+}
+
+// One row per spin. Kept even after the NGC/free-respin outcome is
+// settled, as the permanent record of what happened and why.
+model SpinPlay {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  cost         Int // 0 if this spin was itself a free bonus respin
+  segmentLabel String // e.g. "500", "0", "BONUS" — matches the wheel segment landed on
+  payout       Int      @default(0) // NGC credited; 0 for the 0-segment and the bonus segment
+  isBonusSpin  Boolean  @default(false) // true if this spin itself came from landing on Bonus last time
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+// One row per person per weekly draw. The draw itself (winning number,
+// settlement) is tracked on NumberPickDraw; this is just "who staked
+// what on which number, in which week."
+model NumberPickEntry {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  drawId    String
+  draw      NumberPickDraw    @relation(fields: [drawId], references: [id])
+  number    Int
+  stake     Int
+  status    PredictionStatus  @default(PENDING)
+  payout    Int               @default(0)
+  createdAt DateTime          @default(now())
+
+  // One entry per person per draw — enforced at the DB level, not
+  // just in application code.
+  @@unique([userId, drawId])
+  @@index([drawId])
+}
+
+model NumberPickDraw {
+  id            String            @id @default(cuid())
+  weekStart     DateTime          @unique // the Monday (or chosen cutoff) this draw covers
+  drawAt        DateTime // when the winning number is/was revealed
+  winningNumber Int?
+  settled       Boolean           @default(false)
+  entries       NumberPickEntry[]
+  createdAt     DateTime          @default(now())
 }
 
 // One row per registration attempt (successful or rejected), used to
