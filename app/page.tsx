@@ -3,7 +3,7 @@ import WhitepaperModal from "@/components/WhitepaperModal";
 import { prisma } from "@/lib/prisma";
 
 const LOGO_URL =
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787822761/IMG_20260827_102554_940_tcek9f.jpg";
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1789847856/IMG_20260919_205057_929_hr6nsh.jpg";
 
 // Reads live config (signup bonus) — must never be statically
 // pre-rendered at build time with no live DB connection available.
@@ -216,20 +216,20 @@ export default async function HomePage() {
               Lock NGC for a fixed term and grow your balance automatically over time.
             </p>
           </Link>
-          <div className="card">
-            <p className="text-xs text-muted uppercase tracking-wide mb-1">Coming soon</p>
+          <Link href="/spinthewheel" className="card block hover:opacity-90 transition">
+            <p className="text-xs text-brand uppercase tracking-wide mb-1">Live now</p>
             <h3 className="font-semibold mb-1 text-ink">🎡 Spin the Wheel</h3>
             <p className="text-sm text-muted">
               Spin for a shot at a bigger payout — land the right segment and win big.
             </p>
-          </div>
-          <div className="card">
-            <p className="text-xs text-muted uppercase tracking-wide mb-1">Coming soon</p>
+          </Link>
+          <Link href="/numberpick" className="card block hover:opacity-90 transition">
+            <p className="text-xs text-brand uppercase tracking-wide mb-1">Live now</p>
             <h3 className="font-semibold mb-1 text-ink">🎯 Weekly Draw</h3>
             <p className="text-sm text-muted">
-              Pick your number once a week for a shot at the jackpot.
+              Pick your numbers once a week for a shot at the jackpot.
             </p>
-          </div>
+          </Link>
         </div>
       </section>
 

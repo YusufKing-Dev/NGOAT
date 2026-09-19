@@ -14,12 +14,14 @@ type Pick = "HOME" | "DRAW" | "AWAY";
 
 const DEFAULT_MIN_STAKE = 5000;
 const DEFAULT_MIN_LEGS = 5;
+const DEFAULT_REWARD_MULTIPLIER = 0.8;
 
 export default function PredictPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const [minStake, setMinStake] = useState(DEFAULT_MIN_STAKE);
   const [minLegs, setMinLegs] = useState(DEFAULT_MIN_LEGS);
+  const [rewardMultiplier, setRewardMultiplier] = useState(DEFAULT_REWARD_MULTIPLIER);
   const [stake, setStake] = useState(DEFAULT_MIN_STAKE);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -38,6 +40,7 @@ export default function PredictPage() {
         const liveMinLegs = d.minSlipLegs ?? DEFAULT_MIN_LEGS;
         setMinStake(liveMinStake);
         setMinLegs(liveMinLegs);
+        setRewardMultiplier(d.rewardMultiplier ?? DEFAULT_REWARD_MULTIPLIER);
         setStake(liveMinStake);
       });
   }
@@ -57,6 +60,13 @@ export default function PredictPage() {
   }
 
   const legCount = Object.keys(picks).length;
+  // Same additive formula the server actually settles with: payout =
+  // stake x (1 + legCount x rewardMultiplier). Shown live so someone
+  // building a 3-leg slip sees a smaller potential win than someone
+  // who goes on to pick a 5th match — the number visibly grows with
+  // every extra leg added.
+  const effectiveMultiplier = 1 + legCount * rewardMultiplier;
+  const potentialPayout = Math.round(stake * effectiveMultiplier);
 
   async function submitSlip() {
     if (legCount < minLegs) {
@@ -110,6 +120,23 @@ export default function PredictPage() {
         Accumulator only — pick at least {minLegs} matches, minimum stake{" "}
         {minStake.toLocaleString()} NGC. Every pick must win to get paid.
       </p>
+
+      <div className="card">
+        <p className="text-xs text-brand uppercase tracking-wide mb-2">
+          More matches, bigger payout — at {stake.toLocaleString()} NGC stake
+        </p>
+        <div className="grid grid-cols-4 gap-2 text-center text-xs">
+          {[minLegs, minLegs + 2, minLegs + 4, minLegs + 6].map((legs) => (
+            <div key={legs} className="bg-surface2 rounded-lg py-2">
+              <p className="text-muted">{legs} legs</p>
+              <p className="text-brand font-semibold mt-0.5">
+                {Math.round(stake * (1 + legs * rewardMultiplier)).toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {message && <p className="text-sm text-brand">{message}</p>}
 
       {matches.length === 0 && <p className="text-muted text-sm">No upcoming matches right now.</p>}
@@ -176,6 +203,17 @@ export default function PredictPage() {
             className="input"
             placeholder="Stake (NGC)"
           />
+          {legCount > 0 && (
+            <div className="bg-surface2 rounded-lg px-3 py-2 flex items-center justify-between">
+              <span className="text-xs text-muted">
+                Potential win at {legCount} leg{legCount === 1 ? "" : "s"}
+              </span>
+              <span className="text-brand font-semibold">
+                {potentialPayout.toLocaleString()} NGC{" "}
+                <span className="text-xs font-normal">({effectiveMultiplier.toFixed(1)}×)</span>
+              </span>
+            </div>
+          )}
           <button
             onClick={submitSlip}
             disabled={busy || legCount < minLegs}

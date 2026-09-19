@@ -23,7 +23,7 @@ const SEGMENTS: { label: string; line1: string; line2: string; color: string }[]
 
 const SEGMENT_ANGLE = 360 / SEGMENTS.length;
 const LOGO_URL =
-  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1787822761/IMG_20260827_102554_940_tcek9f.jpg";
+  "https://res.cloudinary.com/drdrwbdkp/image/upload/v1789847856/IMG_20260919_205057_929_hr6nsh.jpg";
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;

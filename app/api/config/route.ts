@@ -19,6 +19,7 @@ export async function GET() {
     maxDailyWithdrawalUsdt: config?.maxDailyWithdrawalUsdt ?? 100,
     minBetCredits: config?.minBetCredits ?? 5000,
     minSlipLegs: config?.minSlipLegs ?? 5,
+    rewardMultiplier: config?.rewardMultiplier ?? 0.8,
     referralBonusCredits: config?.referralBonusCredits ?? 500,
     stakingMinCredits: config?.stakingMinCredits ?? 40000,
     stakingDailyRatePct: config?.stakingDailyRatePct ?? 0.1,
