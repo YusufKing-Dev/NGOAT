@@ -94,6 +94,12 @@ export default function DashboardPage() {
         <Link href="/withdraw" className="btn-secondary text-center">
           WITHDRAW USDT
         </Link>
+        <Link href="/spinthewheel" className="btn-secondary text-center">
+          🎡 SPIN THE WHEEL
+        </Link>
+        <Link href="/numberpick" className="btn-secondary text-center">
+          🎯 NUMBER PICK
+        </Link>
         <Link href="/leaderboard" className="btn-secondary text-center">
           LEADERBOARD
         </Link>
