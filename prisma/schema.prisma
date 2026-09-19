@@ -338,14 +338,23 @@ model PlatformConfig {
   // lib/games.ts (not admin-editable yet — see comment there).
   spinCostNgc Int @default(1000)
 
-  // Number Pick: one draw per week, one number per person, minimum
-  // stake, and the same additive-per-leg payout mechanic as football
-  // predictions — but with its OWN multiplier, kept independent so
-  // tuning football's rate never silently changes this game too.
-  // (19 = a correct pick pays stake + 19x stake = 20x total.)
+  // Number Pick: one draw per week. Each person picks 3 distinct
+  // numbers (order doesn't matter); multiple people CAN pick the same
+  // triple, but each person only once per week (enforced by the
+  // @@unique on NumberPickEntry below — unrelated to what numbers
+  // were picked). Payout depends on how many of the 3 match the
+  // draw's own 3 winning numbers, using the SAME additive mechanic as
+  // football predictions (payout = stake + stake x multiplier) but
+  // with three independent tiers so each can be tuned separately:
+  //   3/3 match (Jackpot): stake + stake x numberPickRewardMultiplier
+  //   2/3 match (Good):    stake + stake x numberPickGoodMultiplier
+  //   1/3 match (Small):   stake + stake x numberPickSmallMultiplier
+  //   0/3 match: total loss
   numberPickMinStake      Int @default(10000)
-  numberPickRangeMax      Int @default(50)
-  numberPickRewardMultiplier Float @default(1.8)
+  numberPickRangeMax      Int @default(30)
+  numberPickRewardMultiplier Float @default(1.8) // Jackpot tier (3/3) — kept under its original name to avoid an unnecessary column rename
+  numberPickGoodMultiplier   Float @default(1.2) // Good tier (2/3)
+  numberPickSmallMultiplier  Float @default(0.8) // Small tier (1/3)
 }
 
 // One row per spin. Kept even after the NGC/free-respin outcome is
@@ -363,35 +372,37 @@ model SpinPlay {
   @@index([userId])
 }
 
-// One row per person per weekly draw. The draw itself (winning number,
-// settlement) is tracked on NumberPickDraw; this is just "who staked
-// what on which number, in which week."
+// One row per person per weekly draw. The draw itself (winning
+// numbers, settlement) is tracked on NumberPickDraw; this is just
+// "who staked what on which 3 numbers, in which week."
 model NumberPickEntry {
-  id        String            @id @default(cuid())
-  userId    String
-  user      User              @relation(fields: [userId], references: [id])
-  drawId    String
-  draw      NumberPickDraw    @relation(fields: [drawId], references: [id])
-  number    Int
-  stake     Int
-  status    PredictionStatus  @default(PENDING)
-  payout    Int               @default(0)
-  createdAt DateTime          @default(now())
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id])
+  drawId     String
+  draw       NumberPickDraw   @relation(fields: [drawId], references: [id])
+  numbers    Int[] // exactly 3 distinct numbers, 1..numberPickRangeMax
+  stake      Int
+  status     PredictionStatus @default(PENDING)
+  matchCount Int? // how many of `numbers` matched the draw, set at settlement
+  payout     Int              @default(0)
+  createdAt  DateTime         @default(now())
 
   // One entry per person per draw — enforced at the DB level, not
-  // just in application code.
+  // just in application code. Deliberately NOT unique on the numbers
+  // themselves — different people are allowed to pick the same triple.
   @@unique([userId, drawId])
   @@index([drawId])
 }
 
 model NumberPickDraw {
-  id            String            @id @default(cuid())
-  weekStart     DateTime          @unique // the Monday (or chosen cutoff) this draw covers
-  drawAt        DateTime // when the winning number is/was revealed
-  winningNumber Int?
-  settled       Boolean           @default(false)
-  entries       NumberPickEntry[]
-  createdAt     DateTime          @default(now())
+  id             String            @id @default(cuid())
+  weekStart      DateTime          @unique // the Monday (or chosen cutoff) this draw covers
+  drawAt         DateTime // when the winning numbers are/were revealed
+  winningNumbers Int[] // exactly 3 numbers once settled; empty until then
+  settled        Boolean           @default(false)
+  entries        NumberPickEntry[]
+  createdAt      DateTime          @default(now())
 }
 
 // One row per registration attempt (successful or rejected), used to

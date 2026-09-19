@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { debitWithCheck } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
-import { DURATION_DAYS } from "@/lib/staking";
+import { DURATION_DAYS, computeAccrued } from "@/lib/staking";
 import { StakeDuration } from "@prisma/client";
 
 // Reads live data / has side effects on every request — must never
@@ -17,7 +17,24 @@ export async function GET() {
     where: { userId: user.id },
     orderBy: { startedAt: "desc" },
   });
-  return NextResponse.json({ stakes });
+
+  // For active stakes, add the value accrued SO FAR (elapsed days,
+  // capped at maturity) using the exact same compounding formula the
+  // release cron uses at full term — so this preview never disagrees
+  // with what actually pays out at maturity. Already-released stakes
+  // just report their real, final releaseAmount.
+  const withAccrued = stakes.map((s) => {
+    if (s.status !== "ACTIVE") {
+      return { ...s, currentValue: s.releaseAmount ?? s.principal, profitSoFar: 0 };
+    }
+    const now = new Date();
+    const elapsedMs = Math.min(now.getTime(), s.maturesAt.getTime()) - s.startedAt.getTime();
+    const elapsedDays = Math.max(0, elapsedMs / (24 * 60 * 60 * 1000));
+    const currentValue = computeAccrued(s.principal, s.dailyRatePct, elapsedDays);
+    return { ...s, currentValue, profitSoFar: currentValue - s.principal };
+  });
+
+  return NextResponse.json({ stakes: withAccrued });
 }
 
 export async function POST(req: NextRequest) {

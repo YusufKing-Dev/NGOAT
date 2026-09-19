@@ -21,6 +21,12 @@ const NUMERIC_FIELDS = [
   "stakingDailyRatePct",
   "minWithdrawalUsdt",
   "maxDailyWithdrawalUsdt",
+  "spinCostNgc",
+  "numberPickMinStake",
+  "numberPickRangeMax",
+  "numberPickRewardMultiplier",
+  "numberPickGoodMultiplier",
+  "numberPickSmallMultiplier",
 ] as const;
 
 const STRING_FIELDS = [
@@ -31,7 +37,7 @@ const STRING_FIELDS = [
   "blockedEmailDomains",
 ] as const;
 
-const BOOLEAN_FIELDS = ["withdrawalsEnabled"] as const;
+const BOOLEAN_FIELDS = ["withdrawalsEnabled", "gamesEnabled", "spinEnabled", "numberPickEnabled"] as const;
 
 export async function GET() {
   const admin = await requireAdmin();

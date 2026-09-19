@@ -17,6 +17,8 @@ type StakeRow = {
   startedAt: string;
   maturesAt: string;
   releaseAmount: number | null;
+  currentValue: number;
+  profitSoFar: number;
 };
 
 export default function StakePage() {
@@ -127,6 +129,17 @@ export default function StakePage() {
               {DURATIONS.find((d) => d.value === s.duration)?.label} · matures{" "}
               {new Date(s.maturesAt).toLocaleDateString()}
             </p>
+            {s.status === "ACTIVE" && (
+              <div className="mt-2 pt-2 border-t border-white/5">
+                <p className="text-xs text-muted">Current value (accrued so far)</p>
+                <p className="text-brand font-semibold">
+                  {s.currentValue.toLocaleString()} NGC{" "}
+                  <span className="text-xs font-normal text-win">
+                    (+{s.profitSoFar.toLocaleString()} profit so far)
+                  </span>
+                </p>
+              </div>
+            )}
             {s.releaseAmount != null && (
               <p className="text-xs text-win mt-1">
                 Released: {s.releaseAmount.toLocaleString()} NGC

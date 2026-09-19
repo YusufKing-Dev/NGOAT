@@ -108,9 +108,18 @@ type PlatformConfig = {
   solanaUsdtMint: string | null;
   solanaRpcEndpoint: string | null;
   blockedEmailDomains: string | null;
+  gamesEnabled: boolean;
+  spinEnabled: boolean;
+  numberPickEnabled: boolean;
+  spinCostNgc: number;
+  numberPickMinStake: number;
+  numberPickRangeMax: number;
+  numberPickRewardMultiplier: number;
+  numberPickGoodMultiplier: number;
+  numberPickSmallMultiplier: number;
 };
 
-const TABS = ["Users", "Deposits", "Withdrawals", "Predictions", "Stakes", "Activity", "Matches", "Settings"] as const;
+const TABS = ["Users", "Deposits", "Withdrawals", "Predictions", "Stakes", "Activity", "Matches", "Games P/L", "Settings"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminPage() {
@@ -124,6 +133,7 @@ export default function AdminPage() {
   const [stakes, setStakes] = useState<Stake[]>([]);
   const [slips, setSlips] = useState<PredictionSlip[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [gamesPL, setGamesPL] = useState<any[]>([]);
   const [config, setConfig] = useState<PlatformConfig | null>(null);
   const [configForm, setConfigForm] = useState<Record<string, string>>({});
   const [configSaving, setConfigSaving] = useState(false);
@@ -186,6 +196,7 @@ export default function AdminPage() {
     safeJson<{ stakes: Stake[] }>("/api/admin/stakes").then((d) => d && setStakes(d.stakes ?? []));
     safeJson<{ slips: PredictionSlip[] }>("/api/admin/predictions").then((d) => d && setSlips(d.slips ?? []));
     safeJson<{ entries: LedgerEntry[] }>("/api/admin/ledger").then((d) => d && setLedger(d.entries ?? []));
+    safeJson<{ games: any[] }>("/api/admin/games-pl").then((d) => d && setGamesPL(d.games ?? []));
     safeJson<{ config: PlatformConfig }>("/api/admin/config").then((d) => {
       if (!d?.config) return;
       setConfig(d.config);
@@ -433,7 +444,7 @@ export default function AdminPage() {
       )
     : matches;
   const filteredConfigKeys = (Object.keys(configForm) as (keyof typeof configForm)[])
-    .filter((key) => key !== "withdrawalsEnabled")
+    .filter((key) => !["withdrawalsEnabled", "gamesEnabled", "spinEnabled", "numberPickEnabled"].includes(key))
     .filter((key) => !searchLower || key.toLowerCase().includes(searchLower));
 
   const filteredSlips = searchLower
@@ -883,6 +894,72 @@ export default function AdminPage() {
         </section>
       )}
 
+      {tab === "Games P/L" && (
+        <div className="space-y-4">
+          {gamesPL.length === 0 && <p className="text-muted text-sm">Loading…</p>}
+          {gamesPL.map((g) => (
+            <section key={g.key} className="card">
+              <h2 className="text-sm text-brand uppercase tracking-wide mb-3">{g.label}</h2>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div>
+                  <p className="text-xs text-muted">Total Played</p>
+                  <p className="font-semibold">{g.allTime.played.toLocaleString()} NGC</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted">Total Win</p>
+                  <p className="font-semibold text-win">{g.allTime.won.toLocaleString()} NGC</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted">Total Loss</p>
+                  <p className="font-semibold text-loss">{g.allTime.loss.toLocaleString()} NGC</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted">Balance</p>
+                  <p className={"font-semibold " + (g.allTime.balance >= 0 ? "text-brand" : "text-loss")}>
+                    {g.allTime.balance.toLocaleString()} NGC
+                  </p>
+                </div>
+              </div>
+
+              <h3 className="text-xs text-muted uppercase tracking-wide mb-2">Last 30 days</h3>
+              {g.daily.length === 0 ? (
+                <p className="text-xs text-muted">No activity yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-muted text-left border-b border-white/10">
+                        <th className="py-1 pr-3">Date</th>
+                        <th className="py-1 pr-3">Played</th>
+                        <th className="py-1 pr-3">Won</th>
+                        <th className="py-1 pr-3">Loss</th>
+                        <th className="py-1">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {g.daily.map((d: any, i: number) => (
+                        <tr key={i} className="border-b border-white/5 last:border-0">
+                          <td className="py-1 pr-3 text-muted">
+                            {new Date(d.day).toLocaleDateString()}
+                          </td>
+                          <td className="py-1 pr-3">{d.played.toLocaleString()}</td>
+                          <td className="py-1 pr-3 text-win">{d.won.toLocaleString()}</td>
+                          <td className="py-1 pr-3 text-loss">{d.loss.toLocaleString()}</td>
+                          <td className={d.balance >= 0 ? "text-brand" : "text-loss"}>
+                            {d.balance.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
+
       {tab === "Settings" && config && (
         <section className="card">
           <h2 className="text-sm text-muted uppercase tracking-wide mb-3">Platform Settings</h2>
@@ -903,6 +980,51 @@ export default function AdminPage() {
                 </span>
               </label>
             </div>
+
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
+              <input
+                type="checkbox"
+                id="gamesEnabled"
+                checked={configForm.gamesEnabled === "true"}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, gamesEnabled: e.target.checked ? "true" : "false" })
+                }
+              />
+              <label htmlFor="gamesEnabled" className="text-sm">
+                Games enabled (master switch){" "}
+                <span className="text-xs text-muted">
+                  (single kill switch for Spin the Wheel and Number Pick together — both stay link-only regardless)
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
+              <input
+                type="checkbox"
+                id="spinEnabled"
+                checked={configForm.spinEnabled === "true"}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, spinEnabled: e.target.checked ? "true" : "false" })
+                }
+              />
+              <label htmlFor="spinEnabled" className="text-sm">
+                Spin the Wheel enabled <span className="text-xs text-muted">(also requires Games enabled above)</span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
+              <input
+                type="checkbox"
+                id="numberPickEnabled"
+                checked={configForm.numberPickEnabled === "true"}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, numberPickEnabled: e.target.checked ? "true" : "false" })
+                }
+              />
+              <label htmlFor="numberPickEnabled" className="text-sm">
+                Number Pick enabled <span className="text-xs text-muted">(also requires Games enabled above)</span>
+              </label>
+            </div>
             {filteredConfigKeys.map((key) => (
                 <div key={key}>
                   <label className="text-xs text-muted">
@@ -910,6 +1032,16 @@ export default function AdminPage() {
                       ? "Reward bonus rate per won leg (additive — e.g. 0.8 = +80% of stake per correct leg, NOT compounding)"
                       : key === "blockedEmailDomains"
                       ? "Extra blocked email domains at registration, comma-separated (e.g. fakemail.com, spamtrap.io) — on top of the built-in disposable-email list"
+                      : key === "numberPickRewardMultiplier"
+                      ? "Number Pick — Jackpot tier (3/3 match): payout = stake + stake x this (e.g. 1.8 = 2.8x total)"
+                      : key === "numberPickGoodMultiplier"
+                      ? "Number Pick — Good tier (2/3 match): payout = stake + stake x this"
+                      : key === "numberPickSmallMultiplier"
+                      ? "Number Pick — Small tier (1/3 match): payout = stake + stake x this"
+                      : key === "numberPickRangeMax"
+                      ? "Number Pick — pick 3 numbers from 1 to this"
+                      : key === "spinCostNgc"
+                      ? "Spin the Wheel — NGC cost per spin"
                       : key}
                   </label>
                   <input

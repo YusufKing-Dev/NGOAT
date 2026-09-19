@@ -116,11 +116,9 @@ export async function playSpin(userId: string) {
 // Number Pick
 // ---------------------------------------------------------------
 
-/**
- * The Monday (00:00 UTC) that starts the current draw week. Draws are
- * identified by this date, so "this week's draw" always resolves to
- * the same row regardless of which day someone plays on.
- */
+const PICKS_PER_ENTRY = 3;
+
+/** The Monday (00:00 UTC) that starts the current draw week. */
 function currentWeekStart(): Date {
   const now = new Date();
   const day = now.getUTCDay(); // 0 = Sunday
@@ -141,18 +139,33 @@ export async function getOrCreateCurrentDraw() {
   });
 }
 
-/** Enters this week's draw with a single number and stake. */
-export async function enterNumberPick(userId: string, number: number, stake: number) {
+/** Draws `count` distinct numbers from 1..max using crypto-secure randomness (partial Fisher-Yates). */
+function drawDistinctNumbers(count: number, max: number): number[] {
+  const pool = Array.from({ length: max }, (_, i) => i + 1);
+  for (let i = 0; i < count; i++) {
+    const j = i + randomInt(0, max - i);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count).sort((a, b) => a - b);
+}
+
+/** Enters this week's draw with exactly 3 distinct numbers and a stake. */
+export async function enterNumberPick(userId: string, numbers: number[], stake: number) {
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
   if (!config?.gamesEnabled || !config?.numberPickEnabled) {
     throw new Error("GAME_DISABLED");
   }
 
   const minStake = config.numberPickMinStake ?? 10000;
-  const rangeMax = config.numberPickRangeMax ?? 50;
+  const rangeMax = config.numberPickRangeMax ?? 30;
 
-  if (!Number.isInteger(number) || number < 1 || number > rangeMax) {
-    throw new Error("INVALID_NUMBER");
+  const uniqueNumbers = Array.from(new Set(numbers));
+  if (
+    numbers.length !== PICKS_PER_ENTRY ||
+    uniqueNumbers.length !== PICKS_PER_ENTRY ||
+    !numbers.every((n) => Number.isInteger(n) && n >= 1 && n <= rangeMax)
+  ) {
+    throw new Error("INVALID_NUMBERS");
   }
   if (stake < minStake) {
     throw new Error("BELOW_MIN_STAKE");
@@ -170,64 +183,75 @@ export async function enterNumberPick(userId: string, number: number, stake: num
     throw new Error("ALREADY_ENTERED_THIS_WEEK");
   }
 
+  const sorted = [...numbers].sort((a, b) => a - b);
+
   await debitWithCheck({
     userId,
     type: LedgerType.NUMBER_PICK_STAKE,
     amount: stake,
-    description: `Number Pick: picked ${number} for the week of ${draw.weekStart.toDateString()}`,
+    description: `Number Pick: picked ${sorted.join(", ")} for the week of ${draw.weekStart.toDateString()}`,
     referencePrefix: "nps",
   });
 
   return prisma.numberPickEntry.create({
-    data: { userId, drawId: draw.id, number, stake },
+    data: { userId, drawId: draw.id, numbers: sorted, stake },
   });
 }
 
 /**
- * Settles the given draw: draws the winning number, pays out any
- * matching entries using the SAME additive payout formula as football
- * predictions (reward = stake x (1 + multiplier)), and marks every
- * entry WON or LOST. Safe to call more than once — a draw that's
- * already settled is a no-op.
+ * Settles the given draw: draws 3 distinct winning numbers, scores
+ * every entry by how many of its 3 numbers match, and pays out by
+ * tier using the same additive formula as football predictions
+ * (payout = stake x (1 + multiplier)) with three independent
+ * multipliers so each tier can be tuned separately. Safe to call more
+ * than once — a draw that's already settled is a no-op.
  */
 export async function settleNumberPickDraw(drawId: string) {
   const draw = await prisma.numberPickDraw.findUnique({ where: { id: drawId } });
   if (!draw || draw.settled) return { skipped: true };
 
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-  const rangeMax = config?.numberPickRangeMax ?? 50;
-  const multiplier = config?.numberPickRewardMultiplier ?? 1.8;
+  const rangeMax = config?.numberPickRangeMax ?? 30;
+  const jackpotMultiplier = config?.numberPickRewardMultiplier ?? 1.8;
+  const goodMultiplier = config?.numberPickGoodMultiplier ?? 1.2;
+  const smallMultiplier = config?.numberPickSmallMultiplier ?? 0.8;
 
-  const winningNumber = randomInt(1, rangeMax + 1);
+  const winningNumbers = drawDistinctNumbers(PICKS_PER_ENTRY, rangeMax);
+  const winningSet = new Set(winningNumbers);
 
   const entries = await prisma.numberPickEntry.findMany({ where: { drawId } });
 
   for (const entry of entries) {
-    if (entry.number === winningNumber) {
-      const payout = Math.round(entry.stake * (1 + multiplier));
+    const matchCount = entry.numbers.filter((n) => winningSet.has(n)).length;
+    const multiplier =
+      matchCount === 3 ? jackpotMultiplier : matchCount === 2 ? goodMultiplier : matchCount === 1 ? smallMultiplier : 0;
+    const tierLabel = matchCount === 3 ? "Jackpot" : matchCount === 2 ? "Good payout" : matchCount === 1 ? "Small payout" : null;
+    const payout = matchCount > 0 ? Math.round(entry.stake * (1 + multiplier)) : 0;
+
+    if (payout > 0) {
       await addLedgerEntry({
         userId: entry.userId,
         type: LedgerType.NUMBER_PICK_PAYOUT,
         amount: payout,
-        description: `Number Pick: won with number ${winningNumber}`,
+        description: `Number Pick: ${tierLabel} — ${matchCount}/3 matched (winning numbers ${winningNumbers.join(", ")})`,
         referencePrefix: "nppay",
       });
-      await prisma.numberPickEntry.update({
-        where: { id: entry.id },
-        data: { status: PredictionStatus.WON, payout },
-      });
-    } else {
-      await prisma.numberPickEntry.update({
-        where: { id: entry.id },
-        data: { status: PredictionStatus.LOST },
-      });
     }
+
+    await prisma.numberPickEntry.update({
+      where: { id: entry.id },
+      data: {
+        status: matchCount > 0 ? PredictionStatus.WON : PredictionStatus.LOST,
+        matchCount,
+        payout,
+      },
+    });
   }
 
   await prisma.numberPickDraw.update({
     where: { id: drawId },
-    data: { winningNumber, settled: true },
+    data: { winningNumbers, settled: true },
   });
 
-  return { skipped: false, winningNumber, entriesSettled: entries.length };
+  return { skipped: false, winningNumbers, entriesSettled: entries.length };
 }
