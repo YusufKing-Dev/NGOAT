@@ -119,16 +119,18 @@ export default async function HomePage() {
           $NGOAT on Solana
         </p>
         <h1 className="scoreboard text-3xl leading-tight mb-3">
-          NGOAT
+          NGOATCOIN
           <br />
           THE REAL GOAT 🐐
         </h1>
         <p className="text-blue-400 mb-6">
-          Everyone knows the GOAT.
+          NGOATCOIN ($NGOAT) is the ecosystem token powering the NGOAT community — a
+          community-driven meme ecosystem built around football, prediction, gaming, rewards,
+          staking, and entertainment.
           <br />
-          Nigeria has its own — NGOAT.
           <br />
-          Meme culture meets football, entertainment, and community-driven utility.
+          $NGOAT connects its community to the existing NgoatCredit ($NGC) platform, where users
+          can play, predict, earn and participate in different ecosystem use cases.
         </p>
         <div className="flex flex-col gap-3">
           <Link href="/predictions" className="btn-primary">
@@ -151,10 +153,10 @@ export default async function HomePage() {
         <div className="text-sm leading-relaxed space-y-3">
           <p>
             NGOAT is a community-driven meme coin built around one simple idea: everyone knows
-            the GOAT, but Nigeria has its own GOAT — NGOAT.
+            the GOAT, but Africa has its own GOAT — NGOAT.
           </p>
           <p>
-            Born from Nigerian internet culture, football passion, memes and crypto, NGOAT is
+            Born from African internet culture, football passion, memes and crypto, NGOAT is
             designed to be more than just another meme token. The project aims to build an
             entertaining community while gradually introducing real utility around the NGOAT
             ecosystem.

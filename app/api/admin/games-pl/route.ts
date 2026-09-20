@@ -56,10 +56,10 @@ export async function GET() {
         `
         SELECT
           date_trunc('day', "createdAt") AS day,
-          SUM(CASE WHEN type = $1 THEN amount ELSE 0 END) AS played,
-          SUM(CASE WHEN type = $2 THEN amount ELSE 0 END) AS won
+          SUM(CASE WHEN type = $1::"LedgerType" THEN amount ELSE 0 END) AS played,
+          SUM(CASE WHEN type = $2::"LedgerType" THEN amount ELSE 0 END) AS won
         FROM "LedgerEntry"
-        WHERE type IN ($1, $2)
+        WHERE type IN ($1::"LedgerType", $2::"LedgerType")
           AND status = 'CONFIRMED'
           AND "createdAt" >= now() - interval '${DAILY_WINDOW_DAYS} days'
         GROUP BY day

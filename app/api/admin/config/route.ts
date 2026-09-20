@@ -37,7 +37,15 @@ const STRING_FIELDS = [
   "blockedEmailDomains",
 ] as const;
 
-const BOOLEAN_FIELDS = ["withdrawalsEnabled", "gamesEnabled", "spinEnabled", "numberPickEnabled"] as const;
+const BOOLEAN_FIELDS = [
+  "withdrawalsEnabled",
+  "predictionsEnabled",
+  "stakingEnabled",
+  "depositsEnabled",
+  "gamesEnabled",
+  "spinEnabled",
+  "numberPickEnabled",
+] as const;
 
 export async function GET() {
   const admin = await requireAdmin();

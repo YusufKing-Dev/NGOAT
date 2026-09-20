@@ -105,6 +105,9 @@ type PlatformConfig = {
   minWithdrawalUsdt: number;
   maxDailyWithdrawalUsdt: number;
   withdrawalsEnabled: boolean;
+  predictionsEnabled: boolean;
+  stakingEnabled: boolean;
+  depositsEnabled: boolean;
   solanaUsdtMint: string | null;
   solanaRpcEndpoint: string | null;
   blockedEmailDomains: string | null;
@@ -134,6 +137,7 @@ export default function AdminPage() {
   const [slips, setSlips] = useState<PredictionSlip[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [gamesPL, setGamesPL] = useState<any[]>([]);
+  const [gamesPLError, setGamesPLError] = useState<string | null>(null);
   const [config, setConfig] = useState<PlatformConfig | null>(null);
   const [configForm, setConfigForm] = useState<Record<string, string>>({});
   const [configSaving, setConfigSaving] = useState(false);
@@ -196,7 +200,14 @@ export default function AdminPage() {
     safeJson<{ stakes: Stake[] }>("/api/admin/stakes").then((d) => d && setStakes(d.stakes ?? []));
     safeJson<{ slips: PredictionSlip[] }>("/api/admin/predictions").then((d) => d && setSlips(d.slips ?? []));
     safeJson<{ entries: LedgerEntry[] }>("/api/admin/ledger").then((d) => d && setLedger(d.entries ?? []));
-    safeJson<{ games: any[] }>("/api/admin/games-pl").then((d) => d && setGamesPL(d.games ?? []));
+    safeJson<{ games: any[] }>("/api/admin/games-pl").then((d) => {
+      if (d) {
+        setGamesPL(d.games ?? []);
+        setGamesPLError(null);
+      } else {
+        setGamesPLError("Failed to load — check the browser console for details, or retry.");
+      }
+    });
     safeJson<{ config: PlatformConfig }>("/api/admin/config").then((d) => {
       if (!d?.config) return;
       setConfig(d.config);
@@ -444,7 +455,18 @@ export default function AdminPage() {
       )
     : matches;
   const filteredConfigKeys = (Object.keys(configForm) as (keyof typeof configForm)[])
-    .filter((key) => !["withdrawalsEnabled", "gamesEnabled", "spinEnabled", "numberPickEnabled"].includes(key))
+    .filter(
+      (key) =>
+        ![
+          "withdrawalsEnabled",
+          "predictionsEnabled",
+          "stakingEnabled",
+          "depositsEnabled",
+          "gamesEnabled",
+          "spinEnabled",
+          "numberPickEnabled",
+        ].includes(key)
+    )
     .filter((key) => !searchLower || key.toLowerCase().includes(searchLower));
 
   const filteredSlips = searchLower
@@ -896,7 +918,15 @@ export default function AdminPage() {
 
       {tab === "Games P/L" && (
         <div className="space-y-4">
-          {gamesPL.length === 0 && <p className="text-muted text-sm">Loading…</p>}
+          {gamesPLError && (
+            <div className="card">
+              <p className="text-loss text-sm">{gamesPLError}</p>
+              <button onClick={loadAll} className="btn-secondary text-xs py-1.5 px-3 mt-2">
+                Retry
+              </button>
+            </div>
+          )}
+          {!gamesPLError && gamesPL.length === 0 && <p className="text-muted text-sm">Loading…</p>}
           {gamesPL.map((g) => (
             <section key={g.key} className="card">
               <h2 className="text-sm text-brand uppercase tracking-wide mb-3">{g.label}</h2>
@@ -977,6 +1007,57 @@ export default function AdminPage() {
                 Withdrawals enabled{" "}
                 <span className="text-xs text-muted">
                   (unchecked = new withdrawal requests are rejected platform-wide; existing requests untouched)
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
+              <input
+                type="checkbox"
+                id="predictionsEnabled"
+                checked={configForm.predictionsEnabled === "true"}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, predictionsEnabled: e.target.checked ? "true" : "false" })
+                }
+              />
+              <label htmlFor="predictionsEnabled" className="text-sm">
+                Football Predictions enabled{" "}
+                <span className="text-xs text-muted">
+                  (unchecked = no new accumulators can be placed; existing slips untouched)
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
+              <input
+                type="checkbox"
+                id="stakingEnabled"
+                checked={configForm.stakingEnabled === "true"}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, stakingEnabled: e.target.checked ? "true" : "false" })
+                }
+              />
+              <label htmlFor="stakingEnabled" className="text-sm">
+                Staking enabled{" "}
+                <span className="text-xs text-muted">
+                  (unchecked = no new stakes can be opened; every active stake keeps accruing and pays out normally)
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3">
+              <input
+                type="checkbox"
+                id="depositsEnabled"
+                checked={configForm.depositsEnabled === "true"}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, depositsEnabled: e.target.checked ? "true" : "false" })
+                }
+              />
+              <label htmlFor="depositsEnabled" className="text-sm">
+                Deposits enabled{" "}
+                <span className="text-xs text-muted">
+                  (unchecked = both manual and on-chain deposit requests are rejected; existing requests untouched)
                 </span>
               </label>
             </div>

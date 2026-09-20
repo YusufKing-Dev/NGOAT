@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   alt="NGOAT"
                   className="w-7 h-7 rounded-full object-cover"
                 />
-                <span className="scoreboard text-xl text-brand">$NGOAT</span>
+                <span className="scoreboard text-xl text-brand">NGOATCOIN</span>
               </Link>
               <NavMenu />
             </nav>

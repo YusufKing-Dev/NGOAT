@@ -103,7 +103,7 @@ export default function DashboardPage() {
         <Link href="/leaderboard" className="btn-secondary text-center">
           LEADERBOARD
         </Link>
-        <Link href="/stake" className="btn-secondary text-center col-span-2">
+        <Link href="/stake" className="btn-secondary text-center">
           STAKE NGC HERE
         </Link>
       </div>
