@@ -314,6 +314,13 @@ model PlatformConfig {
   // no redeploy needed.
   withdrawalsEnabled Boolean @default(false)
 
+  // Kill switches for the other money-moving features. Default true so
+  // existing behaviour is unchanged; the routes only block on an
+  // explicit `=== false`, and the admin Settings tab flips them.
+  predictionsEnabled Boolean @default(true)
+  stakingEnabled     Boolean @default(true)
+  depositsEnabled    Boolean @default(true)
+
   // Solana on-chain deposit config (wallet-connect flow)
   solanaUsdtMint    String? // USDT SPL-token mint address on Solana
   solanaRpcEndpoint String? // e.g. an Alchemy/Helius RPC URL
