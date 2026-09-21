@@ -13,7 +13,7 @@ const TOKENOMICS = [
   { label: "Total Supply", value: "1,000,000,000 $NGOAT" },
   { label: "Blockchain", value: "Solana" },
   { label: "Tax", value: "0%" },
-  { label: "Contract Address", value: "Coming Soon" },
+  { label: "Contract Address", value: "8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump" },
 ];
 
 const ALLOCATION = [
