@@ -55,6 +55,10 @@ export async function POST(req: NextRequest) {
   const minStake = config?.stakingMinCredits ?? 40000;
   const dailyRate = config?.stakingDailyRatePct ?? 0.1;
 
+  if (config?.stakingEnabled === false) {
+    return NextResponse.json({ error: "STAKING_DISABLED" }, { status: 403 });
+  }
+
   if (principal < minStake) {
     return NextResponse.json({ error: "BELOW_MIN_STAKE", minStake }, { status: 400 });
   }

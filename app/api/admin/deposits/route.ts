@@ -1,40 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth"; // implement per your auth choice (NextAuth/Lucia)
+import { requireAdmin } from "@/lib/auth";
 
-export async function POST(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
+// Reads live data — must never be statically pre-rendered at build time.
+export const dynamic = "force-dynamic";
 
-  const body = await req.json();
-  const { usdtAmount, network, txHash, payoutWalletUsed } = body;
+export async function GET() {
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
-  if (!usdtAmount || !network || !txHash || !payoutWalletUsed) {
-    return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
-  }
-
-  const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-  const rate = config?.usdtToCreditsRate ?? 1000;
-
-  if (config?.depositsEnabled === false) {
-    return NextResponse.json({ error: "DEPOSITS_DISABLED" }, { status: 403 });
-  }
-
-  if (config && (usdtAmount < config.minDeposit || usdtAmount > config.maxDeposit)) {
-    return NextResponse.json({ error: "AMOUNT_OUT_OF_RANGE" }, { status: 400 });
-  }
-
-  const deposit = await prisma.depositRequest.create({
-    data: {
-      userId: user.id,
-      usdtAmount,
-      network,
-      txHash,
-      payoutWalletUsed,
-      creditsToIssue: Math.round(usdtAmount * rate),
-      status: "PENDING",
-    },
+  const deposits = await prisma.depositRequest.findMany({
+    include: { user: { select: { username: true, email: true } } },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 100,
   });
-
-  return NextResponse.json({ deposit });
+  return NextResponse.json({ deposits });
 }

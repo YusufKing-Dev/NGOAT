@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
   const minLegs = config?.minSlipLegs ?? 3;
   const minBet = config?.minBetCredits ?? 5000;
 
+  if (config?.predictionsEnabled === false) {
+    return NextResponse.json({ error: "PREDICTIONS_DISABLED" }, { status: 403 });
+  }
+
   if (!Array.isArray(legs) || legs.length < minLegs) {
     return NextResponse.json({ error: "TOO_FEW_LEGS", minLegs }, { status: 400 });
   }

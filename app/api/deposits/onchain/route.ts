@@ -16,6 +16,11 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
+  const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
+  if (config?.depositsEnabled === false) {
+    return NextResponse.json({ error: "DEPOSITS_DISABLED" }, { status: 403 });
+  }
+
   const { signature, usdtAmount, walletAddress } = await req.json();
   if (!signature || !usdtAmount || !walletAddress) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });

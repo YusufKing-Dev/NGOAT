@@ -16,6 +16,10 @@ export async function POST(req: NextRequest) {
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
   const rate = config?.usdtToCreditsRate ?? 1000;
 
+  if (config?.depositsEnabled === false) {
+    return NextResponse.json({ error: "DEPOSITS_DISABLED" }, { status: 403 });
+  }
+
   if (config && (usdtAmount < config.minDeposit || usdtAmount > config.maxDeposit)) {
     return NextResponse.json({ error: "AMOUNT_OUT_OF_RANGE" }, { status: 400 });
   }
