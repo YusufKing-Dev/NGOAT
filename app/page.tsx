@@ -13,8 +13,9 @@ const TOKENOMICS = [
   { label: "Total Supply", value: "1,000,000,000 $NGOAT" },
   { label: "Blockchain", value: "Solana" },
   { label: "Tax", value: "0%" },
-  { label: "Contract Address", value: "8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump" },
 ];
+
+const CONTRACT_ADDRESS = "8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump";
 
 const ALLOCATION = [
   { label: "Liquidity", pct: "70%", amount: "700,000,000" },
@@ -189,6 +190,11 @@ export default async function HomePage() {
           ))}
         </div>
 
+        <div className="rounded-xl border border-white/10 bg-white/5 p-3 mb-4">
+          <p className="text-xs text-muted uppercase tracking-wide mb-1">Contract Address</p>
+          <p className="font-mono text-xs break-all select-all text-ink">{CONTRACT_ADDRESS}</p>
+        </div>
+
         <h3 className="text-xs text-brand uppercase tracking-wide mb-2">Allocation</h3>
         <div className="space-y-2 text-sm">
           {ALLOCATION.map((row) => (
@@ -255,4 +261,4 @@ export default async function HomePage() {
       </section>
     </div>
   );
-}
+      }
