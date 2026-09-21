@@ -27,7 +27,7 @@ async function fdFetch(path: string) {
  * the season (hundreds per competition) — far too many to list on a
  * predictions page in one go.
  */
-export async function fetchScheduledFixtures(competitionCode: string, daysAhead = 7) {
+export async function fetchScheduledFixtures(competitionCode: string, daysAhead = 21) {
   const dateFrom = new Date().toISOString().slice(0, 10);
   const dateTo = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   // NOTE: no `status=SCHEDULED` filter. football-data.org flips a match
