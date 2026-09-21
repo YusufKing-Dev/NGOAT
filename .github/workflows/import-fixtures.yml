@@ -1,15 +1,23 @@
-name: NGOAT import fixtures
+name: NGOAT scheduled jobs
+
+# Replaces the two Vercel crons in vercel.json (they don't run on Netlify):
+#   /api/cron/import-fixtures      (pulls fixtures from football-data.org)
+#   /api/cron/settle-number-pick   (settles due Number Pick draws)
 
 on:
   schedule:
     - cron: "0 */6 * * *"   # every 6 hours
-  workflow_dispatch: {}      # lets you run it by hand from the Actions tab
+  workflow_dispatch: {}      # run by hand from the Actions tab
 
 jobs:
-  import:
+  run:
     runs-on: ubuntu-latest
     steps:
-      - name: Call /api/cron/import-fixtures
+      - name: Import fixtures
         run: |
           curl -sf -X GET "${{ secrets.NGOAT_URL }}/api/cron/import-fixtures" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Settle number pick
+        run: |
+          curl -sf -X GET "${{ secrets.NGOAT_URL }}/api/cron/settle-number-pick" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
