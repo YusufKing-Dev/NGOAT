@@ -1,5 +1,6 @@
 import Link from "next/link";
 import WhitepaperModal from "@/components/WhitepaperModal";
+import CopyButton from "@/components/CopyButton";
 import { prisma } from "@/lib/prisma";
 
 const LOGO_URL =
@@ -191,7 +192,10 @@ export default async function HomePage() {
         </div>
 
         <div className="rounded-xl border border-white/10 bg-white/5 p-3 mb-4">
-          <p className="text-xs text-muted uppercase tracking-wide mb-1">Contract Address</p>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <p className="text-xs text-muted uppercase tracking-wide">Contract Address</p>
+            <CopyButton text={CONTRACT_ADDRESS} />
+          </div>
           <p className="font-mono text-xs break-all select-all text-ink">{CONTRACT_ADDRESS}</p>
         </div>
 
