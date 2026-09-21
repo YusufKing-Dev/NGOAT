@@ -17,6 +17,7 @@ const TOKENOMICS = [
 ];
 
 const CONTRACT_ADDRESS = "8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump";
+const BUY_URL = "https://pump.fun/coin/8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump";
 
 const ALLOCATION = [
   { label: "Liquidity", pct: "70%", amount: "700,000,000" },
@@ -139,13 +140,14 @@ export default async function HomePage() {
             Join $NGOAT — Get {signupBonus.toLocaleString()} NGC Free
           </Link>
           <WhitepaperModal />
-          <button
-            disabled
-            className="btn-secondary opacity-60 cursor-not-allowed"
-            title="Contract address goes live at launch"
+          <a
+            href={BUY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary text-center"
           >
-            Buy $NGOAT — Coming Soon
-          </button>
+            Buy $NGOAT on pump.fun
+          </a>
         </div>
       </section>
 
@@ -265,4 +267,4 @@ export default async function HomePage() {
       </section>
     </div>
   );
-      }
+}
