@@ -30,10 +30,15 @@ async function fdFetch(path: string) {
 export async function fetchScheduledFixtures(competitionCode: string, daysAhead = 7) {
   const dateFrom = new Date().toISOString().slice(0, 10);
   const dateTo = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // NOTE: no `status=SCHEDULED` filter. football-data.org flips a match
+  // from SCHEDULED to TIMED once its kickoff time is confirmed (usually
+  // well before the game), so filtering on SCHEDULED alone drops almost
+  // every near-term fixture. Query by date window and keep both statuses.
   const data = await fdFetch(
-    `/competitions/${competitionCode}/matches?status=SCHEDULED&dateFrom=${dateFrom}&dateTo=${dateTo}`
+    `/competitions/${competitionCode}/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`
   );
-  return (data.matches ?? []) as any[];
+  const matches = (data.matches ?? []) as any[];
+  return matches.filter((m) => m.status === "SCHEDULED" || m.status === "TIMED");
 }
 
 /** Single fixture by football-data.org's own match ID — used to check results. */
