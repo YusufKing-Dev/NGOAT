@@ -13,12 +13,16 @@ export const dynamic = "force-dynamic";
  * isn't included here.
  *
  * For every game:
- *   Total Played = everything staked/spent on it
- *   Total Win    = everything actually paid out to winners
- *   Total Loss   = Played - Win  (what players did NOT get back)
- *   Balance      = Played - Win  (same figure — what the platform kept)
- * Loss and Balance are deliberately the same number, just two labels
- * for it (confirmed with the person who spec'd this).
+ *   Total Played = everything staked/spent on it (always >= 0)
+ *   Total Win    = everything actually paid out to winners (always >= 0)
+ *   Balance      = Won - Played  (what the platform made; negative means
+ *                  the platform paid out more than it took in that period)
+ *
+ * Stake ledger entries are stored as negative amounts (debits) and
+ * payout entries as positive amounts (credits) — see lib/ledger.ts.
+ * Played and Won here are both normalized to their absolute value so
+ * this dashboard reads as plain money-in / money-out, not raw signed
+ * ledger amounts.
  */
 const GAMES: { key: string; label: string; stakeType: LedgerType; payoutType: LedgerType }[] = [
   { key: "football", label: "Football Predictions", stakeType: LedgerType.PREDICTION_STAKE, payoutType: LedgerType.PREDICTION_REWARD },
@@ -44,8 +48,10 @@ export async function GET() {
           _sum: { amount: true },
         }),
       ]);
-      const played = playedAgg._sum.amount ?? 0;
-      const won = wonAgg._sum.amount ?? 0;
+      // Stakes are stored negative, payouts positive — take absolute
+      // value so "played" and "won" are both plain positive totals.
+      const played = Math.abs(playedAgg._sum.amount ?? 0);
+      const won = Math.abs(wonAgg._sum.amount ?? 0);
 
       // Raw SQL for the daily breakdown — grouping by calendar day
       // with two conditional sums in one pass is far simpler as SQL
@@ -72,11 +78,13 @@ export async function GET() {
       return {
         key: game.key,
         label: game.label,
-        allTime: { played, won, loss: played - won, balance: played - won },
+        allTime: { played, won, loss: played - won, balance: won - played },
         daily: daily.map((d) => {
-          const p = Number(d.played ?? 0);
-          const w = Number(d.won ?? 0);
-          return { day: d.day, played: p, won: w, loss: p - w, balance: p - w };
+          // Same sign fix as above: raw SUMs come back with the
+          // stake side negative, so normalize before computing loss/balance.
+          const p = Math.abs(Number(d.played ?? 0));
+          const w = Math.abs(Number(d.won ?? 0));
+          return { day: d.day, played: p, won: w, loss: p - w, balance: w - p };
         }),
       };
     })
