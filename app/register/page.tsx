@@ -16,7 +16,7 @@ function RegisterForm() {
 
   const ERROR_MESSAGES: Record<string, string> = {
     INVALID_INPUT: "Please fill in every field (password needs at least 8 characters).",
-    INVALID_EMAIL: "That email address doesn't look right.",
+    INVALID_EMAIL: "Please use a Gmail, Outlook, Yahoo, Proton, Hotmail, or iCloud address.",
     DISPOSABLE_EMAIL: "Please use a permanent email address — temporary/disposable addresses aren't accepted.",
     USER_ALREADY_EXISTS: "That email or username is already registered.",
     RATE_LIMITED: "Too many attempts from this connection. Please try again in a little while.",
