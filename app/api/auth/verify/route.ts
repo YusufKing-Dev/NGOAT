@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { addLedgerEntry } from "@/lib/ledger";
+import { addLedgerEntry, issueSignupBonus } from "@/lib/ledger";
 
 // Reads live data / has side effects on every request — must never
 // be statically pre-rendered at build time.
@@ -34,6 +34,16 @@ export async function GET(req: NextRequest) {
       verificationTokenExpiry: null,
     },
   });
+
+  // Pay this user's own signup bonus now that their email is
+  // confirmed real. issueSignupBonus guards against a double-credit
+  // via signupBonusIssued, so this is safe even if verify is ever
+  // hit twice for the same token before the update above lands.
+  try {
+    await issueSignupBonus(user.id);
+  } catch (e: any) {
+    if (e.message !== "BONUS_ALREADY_ISSUED") throw e;
+  }
 
   // Pay the referral bonus now, if this user was referred and it
   // hasn't already been paid (referralBonusPaid guards against a
