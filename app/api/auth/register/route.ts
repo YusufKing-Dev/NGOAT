@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { randomBytes, randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { issueSignupBonus } from "@/lib/ledger";
 import { sendVerificationEmail } from "@/lib/email";
-import { checkRateLimit, getClientIp, isDisposableEmail, isPlausibleEmail } from "@/lib/security";
+import { checkRateLimit, getClientIp, isDisposableEmail, isPlausibleEmail, isAllowedEmailDomain } from "@/lib/security";
 
 function generateReferralCode(): string {
   return randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -27,6 +26,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (!isPlausibleEmail(email)) {
+    return NextResponse.json({ error: "INVALID_EMAIL" }, { status: 400 });
+  }
+
+  // Registration is restricted to a small allowlist of well-known
+  // providers (see lib/security.ts) — added after real-gmail signup
+  // farming that a disposable-domain blocklist alone couldn't stop.
+  if (!isAllowedEmailDomain(email)) {
     return NextResponse.json({ error: "INVALID_EMAIL" }, { status: 400 });
   }
 
@@ -86,10 +92,10 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // The free signup bonus is issued immediately, same as before —
-  // only the REFERRAL bonus (paid to whoever referred this user) is
-  // gated behind email verification, not this one.
-  await issueSignupBonus(user.id);
+  // The signup bonus is now paid on email verification (see
+  // app/api/auth/verify/route.ts), not here — issuing it at
+  // registration let anyone farm it with unverified accounts. The
+  // REFERRAL bonus was already gated behind verification.
 
   const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
   const verifyUrl = `${baseUrl}/api/auth/verify?token=${verificationToken}`;
