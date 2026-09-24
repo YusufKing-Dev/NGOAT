@@ -77,6 +77,28 @@ export function isPlausibleEmail(email: string): boolean {
 }
 
 /**
+ * Registration is restricted to a small allowlist of well-known
+ * providers. Added after a September 2026 farming wave that used
+ * real gmail.com addresses to collect signup bonuses — a blocklist
+ * of disposable domains alone can't stop that, since gmail.com is a
+ * legitimate provider. This trades away legitimate providers outside
+ * the list (a company email, a less common provider) in exchange for
+ * shutting that off; revisit if that tradeoff stops being worth it.
+ */
+const ALLOWED_EMAIL_DOMAINS = [
+  "gmail.com",
+  "outlook.com",
+  "yahoo.com",
+  "proton.me",
+  "hotmail.com",
+  "icloud.com",
+];
+
+export function isAllowedEmailDomain(email: string): boolean {
+  return ALLOWED_EMAIL_DOMAINS.includes(emailDomain(email));
+}
+
+/**
  * IP-based rate limit backed by the database (works correctly across
  * Vercel's stateless serverless instances, unlike an in-memory
  * counter). Returns true if this IP is currently within its allowed
