@@ -2,6 +2,21 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        selector: string,
+        options: {
+          sitekey: string;
+          callback: (token: string) => void;
+          "expired-callback"?: () => void;
+        }
+      ) => void;
+    };
+  }
+}
+
 function RegisterForm() {
   const searchParams = useSearchParams();
   const refFromUrl = searchParams.get("ref") ?? "";
@@ -9,6 +24,7 @@ function RegisterForm() {
   const [form, setForm] = useState({ username: "", email: "", password: "" });
   const [refCodeInput, setRefCodeInput] = useState(refFromUrl);
   const [website, setWebsite] = useState(""); // honeypot — real users never see or fill this
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
@@ -20,6 +36,7 @@ function RegisterForm() {
     DISPOSABLE_EMAIL: "Please use a permanent email address — temporary/disposable addresses aren't accepted.",
     USER_ALREADY_EXISTS: "That email or username is already registered.",
     RATE_LIMITED: "Too many attempts from this connection. Please try again in a little while.",
+    TURNSTILE_FAILED: "Verification check failed — please try again.",
   };
 
   useEffect(() => {
@@ -28,6 +45,24 @@ function RegisterForm() {
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => setSignupBonus(d.signupBonusCredits ?? 20000));
+  }, []);
+
+  useEffect(() => {
+    // The Turnstile script is loaded globally in app/layout.tsx. It
+    // may not be ready the instant this component mounts, so poll
+    // briefly until window.turnstile exists, then render the widget
+    // once into the mount point below.
+    const id = setInterval(() => {
+      if (window.turnstile) {
+        window.turnstile.render("#turnstile-widget", {
+          sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY as string,
+          callback: (token: string) => setTurnstileToken(token),
+          "expired-callback": () => setTurnstileToken(""),
+        });
+        clearInterval(id);
+      }
+    }, 200);
+    return () => clearInterval(id);
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -42,6 +77,7 @@ function RegisterForm() {
           ...form,
           referralCode: refCodeInput.trim() || undefined,
           website,
+          turnstileToken,
         }),
       });
       const data = await res.json();
@@ -147,7 +183,11 @@ function RegisterForm() {
             onChange={(e) => setWebsite(e.target.value)}
           />
         </span>
-        <button type="submit" disabled={loading} className="submit">
+        {/* Cloudflare Turnstile — script loaded globally in
+            app/layout.tsx, widget rendered into this div by the
+            useEffect above. Submit stays disabled until it resolves. */}
+        <div id="turnstile-widget" className="my-2" />
+        <button type="submit" disabled={loading || !turnstileToken} className="submit">
           {loading ? "Creating account…" : "Create account"}
         </button>
       </form>
