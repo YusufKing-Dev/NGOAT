@@ -3,14 +3,30 @@ import bcrypt from "bcryptjs";
 import { randomBytes, randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendVerificationEmail } from "@/lib/email";
-import { checkRateLimit, getClientIp, isDisposableEmail, isPlausibleEmail, isAllowedEmailDomain } from "@/lib/security";
+import {
+  checkRateLimit,
+  getClientIp,
+  isDisposableEmail,
+  isPlausibleEmail,
+  isAllowedEmailDomain,
+  verifyTurnstile,
+} from "@/lib/security";
 
 function generateReferralCode(): string {
   return randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
 export async function POST(req: NextRequest) {
-  const { username, email, password, referralCode, website } = await req.json();
+  const { username, email, password, referralCode, website, turnstileToken } = await req.json();
+
+  const ip = getClientIp(req);
+
+  // Turnstile check runs first, before any other validation — a bot
+  // that fails the human challenge shouldn't get far enough to learn
+  // anything about the honeypot, rate limit, or email rules either.
+  if (!(await verifyTurnstile(turnstileToken, ip))) {
+    return NextResponse.json({ error: "TURNSTILE_FAILED" }, { status: 400 });
+  }
 
   // Honeypot: a hidden field real users never see or fill in. Simple
   // bots that blindly fill every form field trip this; humans never
@@ -36,7 +52,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "INVALID_EMAIL" }, { status: 400 });
   }
 
-  const ip = getClientIp(req);
   const withinLimit = await checkRateLimit(ip, "register", 5, 60 * 60 * 1000); // 5 per hour per IP
   if (!withinLimit) {
     return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429 });
