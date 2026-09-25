@@ -38,6 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <SocialLinks />
           </footer>
         </Providers>
+        {/* Cloudflare Turnstile — loaded once, globally, so any page
+            that renders a #turnstile-widget mount point (e.g. /register)
+            can use window.turnstile once this finishes loading. */}
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
       </body>
     </html>
   );
