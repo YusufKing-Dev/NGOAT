@@ -13,10 +13,10 @@ export const dynamic = "force-dynamic";
  * isn't included here.
  *
  * For every game:
- *   Total Played = everything staked/spent on it (always >= 0)
- *   Total Win    = everything actually paid out to winners (always >= 0)
- *   Balance      = Won - Played  (what the platform made; negative means
- *                  the platform paid out more than it took in that period)
+ *   Played = everything staked/spent on it (always >= 0)
+ *   Won    = everything actually paid out to winners (always >= 0)
+ *   Bal    = Played - Won  (what the platform made; negative means the
+ *            platform paid out more than it took in that period)
  *
  * Stake ledger entries are stored as negative amounts (debits) and
  * payout entries as positive amounts (credits) — see lib/ledger.ts.
@@ -78,13 +78,13 @@ export async function GET() {
       return {
         key: game.key,
         label: game.label,
-        allTime: { played, won, loss: played - won, balance: won - played },
+        allTime: { played, won, bal: played - won },
         daily: daily.map((d) => {
           // Same sign fix as above: raw SUMs come back with the
-          // stake side negative, so normalize before computing loss/balance.
+          // stake side negative, so normalize before computing bal.
           const p = Math.abs(Number(d.played ?? 0));
           const w = Math.abs(Number(d.won ?? 0));
-          return { day: d.day, played: p, won: w, loss: p - w, balance: w - p };
+          return { day: d.day, played: p, won: w, bal: p - w };
         }),
       };
     })
