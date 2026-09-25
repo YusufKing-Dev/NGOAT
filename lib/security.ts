@@ -99,6 +99,33 @@ export function isAllowedEmailDomain(email: string): boolean {
 }
 
 /**
+ * Verifies a Cloudflare Turnstile challenge token with Cloudflare's
+ * siteverify endpoint. Must be called server-side only —
+ * TURNSTILE_SECRET_KEY is never exposed to the client. This is the
+ * primary defense against scripted registration: it stops the bot
+ * before an account or verification email even exists, regardless of
+ * whether the email address it's using is real, disposable, or
+ * dot/plus-variant abuse of a real inbox.
+ */
+export async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  if (!token) return false;
+
+  const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      secret: process.env.TURNSTILE_SECRET_KEY,
+      response: token,
+      remoteip: ip,
+    }),
+  });
+
+  if (!res.ok) return false;
+  const data = await res.json();
+  return data.success === true;
+}
+
+/**
  * IP-based rate limit backed by the database (works correctly across
  * Vercel's stateless serverless instances, unlike an in-memory
  * counter). Returns true if this IP is currently within its allowed
