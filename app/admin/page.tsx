@@ -931,23 +931,19 @@ export default function AdminPage() {
             <section key={g.key} className="card">
               <h2 className="text-sm text-brand uppercase tracking-wide mb-3">{g.label}</h2>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="grid grid-cols-3 gap-3 mb-4">
                 <div>
                   <p className="text-xs text-muted">Total Played</p>
                   <p className="font-semibold">{g.allTime.played.toLocaleString()} NGC</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted">Total Win</p>
+                  <p className="text-xs text-muted">Total Won</p>
                   <p className="font-semibold text-win">{g.allTime.won.toLocaleString()} NGC</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted">Total Loss</p>
-                  <p className="font-semibold text-loss">{g.allTime.loss.toLocaleString()} NGC</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted">Balance</p>
-                  <p className={"font-semibold " + (g.allTime.balance >= 0 ? "text-brand" : "text-loss")}>
-                    {g.allTime.balance.toLocaleString()} NGC
+                  <p className="text-xs text-muted">Total Bal</p>
+                  <p className={"font-semibold " + (g.allTime.bal >= 0 ? "text-brand" : "text-loss")}>
+                    {g.allTime.bal.toLocaleString()} NGC
                   </p>
                 </div>
               </div>
@@ -963,8 +959,7 @@ export default function AdminPage() {
                         <th className="py-1 pr-3">Date</th>
                         <th className="py-1 pr-3">Played</th>
                         <th className="py-1 pr-3">Won</th>
-                        <th className="py-1 pr-3">Loss</th>
-                        <th className="py-1">Balance</th>
+                        <th className="py-1">Bal</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -975,9 +970,8 @@ export default function AdminPage() {
                           </td>
                           <td className="py-1 pr-3">{d.played.toLocaleString()}</td>
                           <td className="py-1 pr-3 text-win">{d.won.toLocaleString()}</td>
-                          <td className="py-1 pr-3 text-loss">{d.loss.toLocaleString()}</td>
-                          <td className={d.balance >= 0 ? "text-brand" : "text-loss"}>
-                            {d.balance.toLocaleString()}
+                          <td className={d.bal >= 0 ? "text-brand" : "text-loss"}>
+                            {d.bal.toLocaleString()}
                           </td>
                         </tr>
                       ))}
@@ -1207,4 +1201,4 @@ export default function AdminPage() {
       )}
     </div>
   );
-  }
+    }
