@@ -34,6 +34,7 @@ enum LedgerType {
   REFUND
   STAKE_LOCK
   STAKE_RELEASE
+  STAKE_PROFIT_RELEASE
   REFERRAL_BONUS
   SPIN_COST
   SPIN_PAYOUT
@@ -125,15 +126,31 @@ model User {
   verificationEmailLastSentAt DateTime?
 
   // Referrals: PlatformConfig.referralBonusCredits (default 500 NGC)
-  // is paid to the referrer once the referred user verifies their
-  // email — see app/api/auth/verify/route.ts. referralCode is this
-  // user's own shareable code; referredByUserId links back to
-  // whoever referred them.
+  // is paid to the referrer once the referred user makes their FIRST
+  // approved deposit — see lib/ledger.ts:onDepositApproved(). Not on
+  // signup/verification anymore, to stop referral-bonus farming with
+  // throwaway accounts that never deposit real money.
   referralCode      String  @unique
   referredByUserId  String?
   referredBy        User?   @relation("Referrals", fields: [referredByUserId], references: [id])
   referrals         User[]  @relation("Referrals")
   referralBonusPaid Boolean @default(false) // guards against double-crediting the referrer
+
+  // Running total of all APPROVED deposits (manual + on-chain
+  // auto-verified), in NGC. Incremented once per deposit, right when
+  // it's approved — see lib/ledger.ts:onDepositApproved(). This is
+  // what gates the withdrawal buttons: a user must have deposited at
+  // least PlatformConfig.withdrawalUnlockDepositCredits lifetime
+  // before either withdrawal option (Real Balance or Staked Profit)
+  // becomes usable, regardless of how much they've earned otherwise.
+  totalApprovedDepositCredits Int @default(0)
+
+  // Set once, the moment this user's pre-cutover balance was swept
+  // into the forced 6-month stake (the Sept 28, 2026 migration — see
+  // app/api/admin/cutover/route.ts). Null means they haven't been
+  // through it yet; makes that migration safe to re-run without
+  // double-staking anyone.
+  autoStakedAt DateTime?
 
   // One-wallet-per-account: enforced at first withdrawal, not at
   // signup, so the free bonus stays frictionless to claim. Once set,
@@ -259,21 +276,28 @@ model PredictionSlip {
   legs Prediction[]
 }
 
-// NGC staking: lock NGC for a fixed term, grows 0.1%/day, released in
-// full (principal + growth) at maturity. No early withdrawal in this
-// version — locked funds stay locked until the term ends.
+// NGC staking: lock NGC for a fixed term, grows dailyRatePct%/day as
+// SIMPLE interest (no compounding — profit = principal x rate x days).
+// At maturity the cron (app/api/cron/release-stakes/route.ts) splits
+// the payout into two separate ledger credits: the PRINCIPAL goes
+// straight back to the user's normal spendable balance (type
+// STAKE_RELEASE), while the PROFIT lands in its own bucket (type
+// STAKE_PROFIT_RELEASE) that can only be drawn down via the "Staked
+// Profit" withdrawal option — see lib/ledger.ts. No early withdrawal:
+// locked funds stay locked until maturesAt.
 model Stake {
   id            String        @id @default(cuid())
   userId        String
   user          User          @relation(fields: [userId], references: [id])
   principal     Int
   duration      StakeDuration
-  dailyRatePct  Float // e.g. 0.1 = 0.1%/day, snapshot at stake time
+  dailyRatePct  Float // e.g. 0.01 = 0.01%/day, snapshot at stake time
   status        StakeStatus   @default(ACTIVE)
   startedAt     DateTime      @default(now())
   maturesAt     DateTime
   releasedAt    DateTime?
-  releaseAmount Int? // principal + accrued growth, set at release
+  releaseAmount Int? // principal + accrued profit, set at release (record/display only)
+  profitAmount  Int? // the profit portion alone, set at release — this is what becomes withdrawable
 }
 
 model PlatformConfig {
@@ -281,8 +305,8 @@ model PlatformConfig {
   usdtToCreditsRate Int     @default(2000) // 1 USDT = this many NGC
   depositWallet     String?
   depositNetwork    String?
-  minDeposit        Float   @default(5)
-  maxDeposit        Float   @default(1000)
+  minDeposit        Float   @default(10)
+  maxDeposit        Float   @default(10000)
   minRedemption     Int     @default(1000)
   maxRedemption     Int     @default(1000000)
 
@@ -294,17 +318,27 @@ model PlatformConfig {
   // lib/settlement.ts. 0.8 = each correctly predicted leg adds +80%
   // of the stake to the payout (linear growth, not compounding).
   rewardMultiplier     Float @default(0.8)
-  referralBonusCredits Int   @default(500)
+  referralBonusCredits Int   @default(2000)
 
   // Accumulator predictions: every slip must have at least this many legs.
   minSlipLegs Int @default(5)
 
   // NGC staking
   stakingMinCredits Int   @default(40000)
-  stakingDailyRatePct Float @default(0.1) // percent, e.g. 0.1 = 0.1%/day
+  stakingDailyRatePct Float @default(0.01) // percent, e.g. 0.01 = 0.01%/day, SIMPLE interest (no compounding)
+
+  // Withdrawal buttons (both Real Balance and Staked Profit) only
+  // light up once a user's lifetime approved deposits reach this many
+  // NGC — see User.totalApprovedDepositCredits and lib/ledger.ts.
+  withdrawalUnlockDepositCredits Int @default(20000)
+
+  // Flips true the one time app/api/admin/cutover/route.ts (the Sept
+  // 28, 2026 forced-staking migration) is run, so it can never
+  // double-run and double-stake everyone's balance a second time.
+  balanceMigrationCompleted Boolean @default(false)
 
   // Daily withdrawal limits, in USDT
-  minWithdrawalUsdt    Float @default(5)
+  minWithdrawalUsdt    Float @default(10)
   maxDailyWithdrawalUsdt Float @default(100)
 
   // Master switch: while false, /api/withdrawals rejects every new
@@ -343,7 +377,7 @@ model PlatformConfig {
 
   // Spin: fixed cost per spin. Segment odds/payouts live in
   // lib/games.ts (not admin-editable yet — see comment there).
-  spinCostNgc Int @default(1000)
+  spinCostNgc Int @default(10000)
 
   // Number Pick: one draw per week. Each person picks 3 distinct
   // numbers (order doesn't matter); multiple people CAN pick the same
@@ -358,7 +392,7 @@ model PlatformConfig {
   //   1/3 match (Small):   stake + stake x numberPickSmallMultiplier
   //   0/3 match: total loss
   numberPickMinStake      Int @default(10000)
-  numberPickRangeMax      Int @default(30)
+  numberPickRangeMax      Int @default(20)
   numberPickRewardMultiplier Float @default(1.8) // Jackpot tier (3/3) — kept under its original name to avoid an unnecessary column rename
   numberPickGoodMultiplier   Float @default(1.2) // Good tier (2/3)
   numberPickSmallMultiplier  Float @default(0.8) // Small tier (1/3)

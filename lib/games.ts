@@ -10,7 +10,7 @@ import { LedgerType, PredictionStatus } from "@prisma/client";
 /**
  * Segment odds and payout, as agreed in the platform proposal. Payout
  * is the segment's NGC value PLUS the stake returned — e.g. landing
- * on 2000 pays 3000 total. The 0 segment pays nothing (full loss);
+ * on 20000 pays 30000 total. The 0 segment pays nothing (full loss);
  * the Bonus segment pays nothing but grants one free respin.
  *
  * Odds sum to 100. Not admin-editable yet — these are the numbers
@@ -20,13 +20,13 @@ import { LedgerType, PredictionStatus } from "@prisma/client";
  */
 const SPIN_SEGMENTS: { label: string; odds: number; value: number; isBonus?: boolean }[] = [
   { label: "0", odds: 35, value: 0 },
-  { label: "10", odds: 20, value: 10 },
-  { label: "5", odds: 15, value: 5 },
-  { label: "2", odds: 13, value: 2 },
-  { label: "500", odds: 9, value: 500 },
-  { label: "1000", odds: 4, value: 1000 },
-  { label: "2000", odds: 2.5, value: 2000 },
-  { label: "5000", odds: 0.5, value: 5000 },
+  { label: "100", odds: 20, value: 100 },
+  { label: "50", odds: 15, value: 50 },
+  { label: "20", odds: 13, value: 20 },
+  { label: "5000", odds: 9, value: 5000 },
+  { label: "10000", odds: 4, value: 10000 },
+  { label: "20000", odds: 2.5, value: 20000 },
+  { label: "50000", odds: 0.5, value: 50000 },
   { label: "BONUS", odds: 1, value: 0, isBonus: true },
 ];
 
@@ -53,7 +53,7 @@ export async function playSpin(userId: string) {
   if (!config?.gamesEnabled || !config?.spinEnabled) {
     throw new Error("GAME_DISABLED");
   }
-  const cost = config.spinCostNgc ?? 1000;
+  const cost = config.spinCostNgc ?? 10000;
 
   // Atomically check-and-consume a free spin if one's available, so
   // two concurrent requests can't both consume the same single credit.
@@ -157,7 +157,7 @@ export async function enterNumberPick(userId: string, numbers: number[], stake: 
   }
 
   const minStake = config.numberPickMinStake ?? 10000;
-  const rangeMax = config.numberPickRangeMax ?? 30;
+  const rangeMax = config.numberPickRangeMax ?? 20;
 
   const uniqueNumbers = Array.from(new Set(numbers));
   if (
@@ -211,7 +211,7 @@ export async function settleNumberPickDraw(drawId: string) {
   if (!draw || draw.settled) return { skipped: true };
 
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-  const rangeMax = config?.numberPickRangeMax ?? 30;
+  const rangeMax = config?.numberPickRangeMax ?? 20;
   const jackpotMultiplier = config?.numberPickRewardMultiplier ?? 1.8;
   const goodMultiplier = config?.numberPickGoodMultiplier ?? 1.2;
   const smallMultiplier = config?.numberPickSmallMultiplier ?? 0.8;

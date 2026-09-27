@@ -26,7 +26,7 @@ export async function GET() {
   return NextResponse.json({
     balance,
     freeSpinsAvailable: dbUser?.freeSpinsAvailable ?? 0,
-    spinCost: config?.spinCostNgc ?? 1000,
+    spinCost: config?.spinCostNgc ?? 10000,
     enabled: !!(config?.gamesEnabled && config?.spinEnabled),
     recent,
   });

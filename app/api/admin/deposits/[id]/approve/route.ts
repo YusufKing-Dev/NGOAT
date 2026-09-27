@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { addLedgerEntry } from "@/lib/ledger";
+import { addLedgerEntry, onDepositApproved } from "@/lib/ledger";
 import { requireAdmin } from "@/lib/auth";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -30,6 +30,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     description: `Deposit approved: ${deposit.usdtAmount} USDT on ${deposit.network}`,
     referencePrefix: "dep",
   });
+
+  // Lifetime-deposit total + first-deposit referral bonus.
+  await onDepositApproved(deposit.userId, deposit.creditsToIssue);
 
   return NextResponse.json({ ok: true });
 }

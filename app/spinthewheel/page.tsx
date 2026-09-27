@@ -10,15 +10,15 @@ import { useRouter } from "next/navigation";
 // decides which label wins independent of wheel position; the client
 // just looks up whichever slice currently displays that label.
 const SEGMENTS: { label: string; line1: string; line2: string; color: string }[] = [
-  { label: "500", line1: "+500", line2: "NGC", color: "#008751" },
-  { label: "2", line1: "+2", line2: "NGC", color: "#7C3AED" },
-  { label: "5000", line1: "+5,000", line2: "NGC", color: "#0F1A2E" },
+  { label: "5000", line1: "+5,000", line2: "NGC", color: "#008751" },
+  { label: "20", line1: "+20", line2: "NGC", color: "#7C3AED" },
+  { label: "50000", line1: "+50,000", line2: "NGC", color: "#0F1A2E" },
   { label: "0", line1: "0", line2: "NGC", color: "#008751" },
-  { label: "1000", line1: "+1,000", line2: "NGC", color: "#7C3AED" },
-  { label: "10", line1: "+10", line2: "NGC", color: "#0F1A2E" },
+  { label: "10000", line1: "+10,000", line2: "NGC", color: "#7C3AED" },
+  { label: "100", line1: "+100", line2: "NGC", color: "#0F1A2E" },
   { label: "BONUS", line1: "FREE", line2: "SPIN", color: "#008751" },
-  { label: "5", line1: "+5", line2: "NGC", color: "#7C3AED" },
-  { label: "2000", line1: "+2,000", line2: "NGC", color: "#0F1A2E" },
+  { label: "50", line1: "+50", line2: "NGC", color: "#7C3AED" },
+  { label: "20000", line1: "+20,000", line2: "NGC", color: "#0F1A2E" },
 ];
 
 const SEGMENT_ANGLE = 360 / SEGMENTS.length;

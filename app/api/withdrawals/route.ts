@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getWithdrawableBalance, debitWithCheck } from "@/lib/ledger";
+import { getRealWithdrawableBalance, getStakingProfitBalance, debitWithCheck } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
+import { LedgerType } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
-  const { usdtAmount, network, walletAddress } = await req.json();
+  const { usdtAmount, network, walletAddress, source } = await req.json();
   if (!usdtAmount || !network || !walletAddress) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
+  // "real" = ordinary spendable balance (deposits, winnings, matured
+  // stake principal). "staking_profit" = profit released from matured
+  // stakes only — see lib/ledger.ts. Defaults to "real" so existing
+  // clients that don't send this yet keep working unchanged.
+  const withdrawSource: "real" | "staking_profit" = source === "staking_profit" ? "staking_profit" : "real";
 
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
 
@@ -25,8 +31,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+
+  // Neither withdrawal option lights up until the user has put real
+  // money in — a lifetime total of at least withdrawalUnlockDepositCredits
+  // NGC in APPROVED deposits, regardless of how much they've earned
+  // otherwise (bonus, winnings, staking profit all included).
+  const unlockThreshold = config?.withdrawalUnlockDepositCredits ?? 20000;
+  const totalDeposited = dbUser?.totalApprovedDepositCredits ?? 0;
+  if (totalDeposited < unlockThreshold) {
+    return NextResponse.json(
+      {
+        error: "DEPOSIT_REQUIREMENT_NOT_MET",
+        unlockThreshold,
+        totalDeposited,
+        message: `Deposit at least ${unlockThreshold.toLocaleString()} NGC to unlock withdrawals.`,
+      },
+      { status: 403 }
+    );
+  }
+
   const rate = config?.usdtToCreditsRate ?? 2000;
-  const minUsdt = config?.minWithdrawalUsdt ?? 5;
+  const minUsdt = config?.minWithdrawalUsdt ?? 10;
   const maxDailyUsdt = config?.maxDailyWithdrawalUsdt ?? 100;
 
   if (usdtAmount < minUsdt) {
@@ -40,7 +66,6 @@ export async function POST(req: NextRequest) {
   // linked to a second account — this is the core anti-multi-account
   // control, enforced here at withdrawal rather than at signup so the
   // free bonus stays frictionless to claim.
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
   if (dbUser?.walletAddress && dbUser.walletAddress !== walletAddress) {
     return NextResponse.json(
       { error: "WALLET_MISMATCH", linkedWallet: dbUser.walletAddress },
@@ -59,6 +84,7 @@ export async function POST(req: NextRequest) {
 
   // Daily cap: sum today's PENDING + PAID withdrawal requests (rejected
   // ones never actually went through, so they don't count against it).
+  // Applies across BOTH sources combined — one $100/day cap total.
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
   const todaysWithdrawals = await prisma.withdrawalRequest.aggregate({
@@ -83,24 +109,45 @@ export async function POST(req: NextRequest) {
 
   const creditsNeeded = Math.round(usdtAmount * rate);
 
-  // The free signup bonus is never withdrawable — only balance ON TOP
-  // of it (deposits, prediction winnings, staking payouts) is eligible.
-  // This is now the ONLY balance-based restriction on withdrawals.
-  const withdrawable = await getWithdrawableBalance(user.id);
-  if (withdrawable < creditsNeeded) {
-    return NextResponse.json(
-      { error: "EXCEEDS_WITHDRAWABLE_BALANCE", withdrawable },
-      { status: 400 }
-    );
+  if (withdrawSource === "staking_profit") {
+    // Staked Profit: only released profit from MATURED stakes is ever
+    // withdrawable this way — this balance is naturally 0 until at
+    // least one stake has matured, which is what keeps this option
+    // inactive before the 6-month term ends.
+    const stakingProfit = await getStakingProfitBalance(user.id);
+    if (stakingProfit < creditsNeeded) {
+      return NextResponse.json(
+        { error: "EXCEEDS_STAKING_PROFIT_BALANCE", stakingProfit },
+        { status: 400 }
+      );
+    }
+    await debitWithCheck({
+      userId: user.id,
+      type: LedgerType.STAKE_PROFIT_RELEASE,
+      amount: creditsNeeded,
+      description: `Staked profit withdrawal: ${usdtAmount} USDT to ${network}`,
+      referencePrefix: "wd",
+    });
+  } else {
+    // Real Balance: everything else — the free signup bonus is never
+    // withdrawable, and currently-available staking profit is
+    // excluded here too (it must be withdrawn via "Staked Profit"
+    // specifically, never lumped in).
+    const withdrawable = await getRealWithdrawableBalance(user.id);
+    if (withdrawable < creditsNeeded) {
+      return NextResponse.json(
+        { error: "EXCEEDS_WITHDRAWABLE_BALANCE", withdrawable },
+        { status: 400 }
+      );
+    }
+    await debitWithCheck({
+      userId: user.id,
+      type: LedgerType.REDEMPTION,
+      amount: creditsNeeded,
+      description: `Withdrawal request: ${usdtAmount} USDT to ${network}`,
+      referencePrefix: "wd",
+    });
   }
-
-  await debitWithCheck({
-    userId: user.id,
-    type: "REDEMPTION",
-    amount: creditsNeeded,
-    description: `Withdrawal request: ${usdtAmount} USDT to ${network}`,
-    referencePrefix: "wd",
-  });
 
   const withdrawal = await prisma.withdrawalRequest.create({
     data: { userId: user.id, usdtAmount, network, walletAddress, status: "PENDING" },

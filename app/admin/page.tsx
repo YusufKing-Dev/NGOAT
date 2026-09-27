@@ -56,6 +56,7 @@ type Stake = {
   startedAt: string;
   maturesAt: string;
   releaseAmount: number | null;
+  profitAmount: number | null;
   user: { username: string; email: string };
 };
 
@@ -391,6 +392,43 @@ export default function AdminPage() {
   const [userSearch, setUserSearch] = useState("");
   const [reconcileStatus, setReconcileStatus] = useState<string | null>(null);
   const [reconcileBusy, setReconcileBusy] = useState(false);
+  const [cutoverBusy, setCutoverBusy] = useState(false);
+  const [cutoverResult, setCutoverResult] = useState<string | null>(null);
+
+  // The Sept 28, 2026 forced-staking migration — sweeps every user's
+  // current balance into a 6-month stake, resets existing stakes to
+  // 6mo/0.01%, and locks the Stake button. Idempotent server-side
+  // (config.balanceMigrationCompleted), but this is real money moving
+  // for every user, so it's a deliberate confirmed click, not a cron.
+  async function runCutover() {
+    if (
+      !confirm(
+        "This sweeps EVERY user's current balance into a forced 6-month stake, resets all existing stakes to 6 months, and locks the Stake button. This cannot be undone. Continue?"
+      )
+    ) {
+      return;
+    }
+    setCutoverBusy(true);
+    setCutoverResult(null);
+    try {
+      const res = await fetch("/api/admin/cutover", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setCutoverResult(`Failed: ${data.error ?? "unknown error"}`);
+      } else if (data.alreadyCompleted) {
+        setCutoverResult("Already run — this only happens once.");
+      } else {
+        setCutoverResult(
+          `Done. ${data.usersStaked} users auto-staked, ${data.stakesUpdated} existing stakes reset to 6mo.` +
+            (data.errors?.length ? ` ${data.errors.length} errors — check server logs.` : "")
+        );
+      }
+    } catch {
+      setCutoverResult("Request failed.");
+    }
+    setCutoverBusy(false);
+    loadAll();
+  }
 
   async function reconcileSlips() {
     setReconcileBusy(true);
@@ -784,34 +822,38 @@ export default function AdminPage() {
       {tab === "Activity" && (
         <div className="flex flex-wrap gap-2">
           {[
-            "ACCOUNT_CREATED",
-            "SIGNUP_BONUS",
-            "DEPOSIT",
-            "REDEMPTION",
-            "PREDICTION_STAKE",
-            "PREDICTION_REWARD",
-            "STAKE_LOCK",
-            "STAKE_RELEASE",
-            "REFERRAL_BONUS",
-            "ADMIN_ADJUSTMENT",
-            "REFUND",
-            "SPIN_COST",
-            "SPIN_PAYOUT",
-            "NUMBER_PICK_STAKE",
-            "NUMBER_PICK_PAYOUT",
-          ].map((t) => (
+            { value: "ACCOUNT_CREATED", label: "ACCOUNT CREATED" },
+            { value: "SIGNUP_BONUS", label: "SIGNUP BONUS" },
+            { value: "DEPOSIT", label: "DEPOSIT" },
+            // Displayed as "Withdrawal" since that's what users actually
+            // call it — the underlying ledger type stays REDEMPTION,
+            // unchanged in the database, so filtering below still works.
+            { value: "REDEMPTION", label: "WITHDRAWAL" },
+            { value: "PREDICTION_STAKE", label: "PREDICTION STAKE" },
+            { value: "PREDICTION_REWARD", label: "PREDICTION REWARD" },
+            { value: "STAKE_LOCK", label: "STAKE LOCK" },
+            { value: "STAKE_RELEASE", label: "STAKE RELEASE" },
+            { value: "STAKE_PROFIT_RELEASE", label: "STAKED PROFIT RELEASE" },
+            { value: "REFERRAL_BONUS", label: "REFERRAL BONUS" },
+            { value: "ADMIN_ADJUSTMENT", label: "ADMIN ADJUSTMENT" },
+            { value: "REFUND", label: "REFUND" },
+            { value: "SPIN_COST", label: "SPIN COST" },
+            { value: "SPIN_PAYOUT", label: "SPIN PAYOUT" },
+            { value: "NUMBER_PICK_STAKE", label: "NUMBER PICK STAKE" },
+            { value: "NUMBER_PICK_PAYOUT", label: "NUMBER PICK PAYOUT" },
+          ].map(({ value, label }) => (
             <button
-              key={t}
+              key={value}
               type="button"
-              onClick={() => setUserSearch(userSearch === t ? "" : t)}
+              onClick={() => setUserSearch(userSearch === value ? "" : value)}
               className={
                 "text-xs px-2 py-1 rounded-full border " +
-                (userSearch === t
+                (userSearch === value
                   ? "bg-brand text-black border-brand"
                   : "border-white/10 text-muted hover:text-ink")
               }
             >
-              {t.replaceAll("_", " ")}
+              {label}
             </button>
           ))}
         </div>
@@ -874,7 +916,13 @@ export default function AdminPage() {
                   Status: <span className="text-brand">{s.status}</span> · started{" "}
                   {new Date(s.startedAt).toLocaleDateString()} · matures{" "}
                   {new Date(s.maturesAt).toLocaleDateString()}
-                  {s.releaseAmount != null && <> · released {s.releaseAmount.toLocaleString()} NGC</>}
+                  {s.releaseAmount != null && (
+                    <>
+                      {" "}
+                      · released: {s.principal.toLocaleString()} NGC principal (real balance) +{" "}
+                      {(s.profitAmount ?? 0).toLocaleString()} NGC profit (staked-profit balance)
+                    </>
+                  )}
                 </p>
               </div>
             ))}
@@ -1133,6 +1181,27 @@ export default function AdminPage() {
               {configSaving ? "Saving…" : "Save settings"}
             </button>
           </form>
+
+          <div className="card mt-4">
+            <p className="text-sm font-semibold text-brand mb-1">
+              Sept 28, 2026 — Force-stake all balances
+            </p>
+            <p className="text-xs text-muted mb-3">
+              One-time, one-way: sweeps every user's current balance into a 6-month stake at
+              0.01%/day, resets every existing active stake to 6 months (extended from its own
+              start date) at the new rate, and locks the Stake button. Safe to click more than
+              once — it only actually runs the first time.
+            </p>
+            <button
+              type="button"
+              onClick={runCutover}
+              disabled={cutoverBusy}
+              className="btn-secondary w-full text-loss border-loss"
+            >
+              {cutoverBusy ? "Running…" : "Run balance migration"}
+            </button>
+            {cutoverResult && <p className="text-xs text-muted mt-2">{cutoverResult}</p>}
+          </div>
         </section>
       )}
 
@@ -1201,4 +1270,4 @@ export default function AdminPage() {
       )}
     </div>
   );
-    }
+  }

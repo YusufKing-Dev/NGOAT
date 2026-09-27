@@ -21,6 +21,7 @@ const NUMERIC_FIELDS = [
   "stakingDailyRatePct",
   "minWithdrawalUsdt",
   "maxDailyWithdrawalUsdt",
+  "withdrawalUnlockDepositCredits",
   "spinCostNgc",
   "numberPickMinStake",
   "numberPickRangeMax",

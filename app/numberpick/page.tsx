@@ -7,7 +7,7 @@ export default function NumberPickPage() {
   const { status } = useSession();
   const router = useRouter();
   const [minStake, setMinStake] = useState(10000);
-  const [rangeMax, setRangeMax] = useState(30);
+  const [rangeMax, setRangeMax] = useState(20);
   const [jackpotMultiplier, setJackpotMultiplier] = useState(1.8);
   const [goodMultiplier, setGoodMultiplier] = useState(1.2);
   const [smallMultiplier, setSmallMultiplier] = useState(0.8);

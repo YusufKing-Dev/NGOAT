@@ -7,6 +7,9 @@ import { useRouter } from "next/navigation";
 type MeData = {
   balance: number;
   withdrawableBalance: number;
+  realWithdrawableBalance: number;
+  staking: { stakedAmount: number; profitAccruing: number; profitAvailable: number };
+  withdrawalUnlock: { threshold: number; totalDeposited: number; met: boolean };
   stats: { total: number; wins: number; losses: number; winPct: number };
   recent: { id: string; type: string; amount: number; description: string | null; createdAt: string }[];
   referralCode: string | null;
@@ -17,22 +20,36 @@ export default function DashboardPage() {
   const { status } = useSession();
   const router = useRouter();
   const [data, setData] = useState<MeData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [referralBonus, setReferralBonus] = useState(500);
+  const [referralBonus, setReferralBonus] = useState(2000);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
     if (status === "authenticated") {
       fetch("/api/me")
-        .then((r) => r.json())
-        .then(setData);
+        .then(async (r) => {
+          const body = await r.json();
+          if (!r.ok) throw new Error(body?.error ?? `Request failed (${r.status})`);
+          return body;
+        })
+        .then(setData)
+        .catch((e) => setLoadError(e.message));
       // Reflect the admin's live referral bonus, never a hardcoded
       // copy that can drift out of sync with what actually gets paid.
       fetch("/api/config")
         .then((r) => r.json())
-        .then((d) => setReferralBonus(d.referralBonusCredits ?? 500));
+        .then((d) => setReferralBonus(d.referralBonusCredits ?? 2000));
     }
   }, [status, router]);
+
+  if (loadError) {
+    return (
+      <p className="text-loss pt-10 text-center text-sm">
+        Couldn't load your dashboard: {loadError}
+      </p>
+    );
+  }
 
   if (status === "loading" || !data) {
     return <p className="text-muted pt-10 text-center">Loading…</p>;
@@ -40,7 +57,7 @@ export default function DashboardPage() {
 
   const NGC_PER_USDT = 2000;
   const usdtValue = data.balance / NGC_PER_USDT;
-  const withdrawableUsdt = data.withdrawableBalance / NGC_PER_USDT;
+  const realWithdrawableUsdt = data.realWithdrawableBalance / NGC_PER_USDT;
   const referralLink =
     data.referralCode && typeof window !== "undefined"
       ? `${window.location.origin}/register?ref=${data.referralCode}`
@@ -62,13 +79,37 @@ export default function DashboardPage() {
           ≈ ${usdtValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
           USDT
         </p>
+
+        {((data.staking?.stakedAmount ?? 0) > 0 || (data.staking?.profitAvailable ?? 0) > 0) && (
+          <div className="mt-3 pt-3 border-t border-white/5 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-muted uppercase tracking-wide">Staked</p>
+              <p className="text-lg font-semibold">{(data.staking?.stakedAmount ?? 0).toLocaleString()} NGC</p>
+              {(data.staking?.profitAccruing ?? 0) > 0 && (
+                <p className="text-xs text-win">
+                  +{(data.staking?.profitAccruing ?? 0).toLocaleString()} profit accruing
+                </p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-muted uppercase tracking-wide">Staked Profit</p>
+              <p className="text-lg font-semibold text-win">
+                {(data.staking?.profitAvailable ?? 0).toLocaleString()} NGC
+              </p>
+              <p className="text-xs text-muted">
+                {(data.staking?.profitAvailable ?? 0) > 0 ? "withdrawable now" : "released at maturity"}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="mt-3 pt-3 border-t border-white/5">
           <p className="text-xs text-muted uppercase tracking-wide">Withdrawable</p>
           <p className="text-lg font-semibold">
-            {data.withdrawableBalance.toLocaleString()} NGC{" "}
+            {(data.realWithdrawableBalance ?? 0).toLocaleString()} NGC{" "}
             <span className="text-muted text-sm font-normal">
               (≈ $
-              {withdrawableUsdt.toLocaleString(undefined, {
+              {realWithdrawableUsdt.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -78,6 +119,12 @@ export default function DashboardPage() {
           <p className="text-xs text-muted mt-1">
             Your free signup bonus is never withdrawable — only balance earned on top of it.
           </p>
+          {!data.withdrawalUnlock.met && (
+            <p className="text-xs text-brand mt-1">
+              Deposit at least {data.withdrawalUnlock.threshold.toLocaleString()} NGC to unlock
+              withdrawals ({data.withdrawalUnlock.totalDeposited.toLocaleString()} so far).
+            </p>
+          )}
         </div>
       </div>
 
@@ -111,8 +158,8 @@ export default function DashboardPage() {
       <div className="card">
         <p className="text-sm text-muted uppercase tracking-wide mb-2">Refer & Earn</p>
         <p className="text-xs text-muted mb-3">
-          Get {referralBonus.toLocaleString()} NGC for every friend who registers and verifies
-          their email using your link.
+          Get {referralBonus.toLocaleString()} NGC for every friend who registers with your link
+          and makes their first deposit.
         </p>
         {data.referralCode && (
           <>

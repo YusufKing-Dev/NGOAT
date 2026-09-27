@@ -24,11 +24,12 @@ type StakeRow = {
 export default function StakePage() {
   const [stakes, setStakes] = useState<StakeRow[]>([]);
   const [minStake, setMinStake] = useState(DEFAULT_MIN_STAKE);
-  const [dailyRatePct, setDailyRatePct] = useState(0.1);
+  const [dailyRatePct, setDailyRatePct] = useState(0.01);
   const [amount, setAmount] = useState(DEFAULT_MIN_STAKE);
   const [duration, setDuration] = useState("THREE_MONTHS");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [stakingEnabled, setStakingEnabled] = useState<boolean | null>(null); // null = still loading
 
   function load() {
     fetch("/api/stakes")
@@ -42,7 +43,8 @@ export default function StakePage() {
         const live = d.stakingMinCredits ?? DEFAULT_MIN_STAKE;
         setMinStake(live);
         setAmount(live);
-        setDailyRatePct(d.stakingDailyRatePct ?? 0.1);
+        setDailyRatePct(d.stakingDailyRatePct ?? 0.01);
+        setStakingEnabled(d.stakingEnabled !== false);
       });
   }
 
@@ -76,6 +78,17 @@ export default function StakePage() {
   return (
     <div className="pt-6 space-y-4">
       <h1 className="scoreboard text-3xl">STAKE NGC</h1>
+
+      {stakingEnabled === false ? (
+        <div className="card">
+          <p className="text-sm text-brand font-semibold mb-1">Staking is closed</p>
+          <p className="text-xs text-muted">
+            New stakes aren't being accepted right now — your existing balance and any active
+            stakes are safe. Check the Withdraw page for your Real Balance and Staked Profit.
+          </p>
+        </div>
+      ) : (
+      <>
       <p className="text-xs text-muted">
         Minimum {minStake.toLocaleString()} NGC. Grows {dailyRatePct}% daily while locked. No
         early withdrawal — the full amount (principal + growth) releases automatically when the
@@ -105,6 +118,8 @@ export default function StakePage() {
           {busy ? "Staking…" : "Stake NGC"}
         </button>
       </form>
+      </>
+      )}
 
       <div className="space-y-3">
         <h2 className="text-sm text-muted uppercase tracking-wide">Your Stakes</h2>
@@ -142,7 +157,8 @@ export default function StakePage() {
             )}
             {s.releaseAmount != null && (
               <p className="text-xs text-win mt-1">
-                Released: {s.releaseAmount.toLocaleString()} NGC
+                Released: {s.principal.toLocaleString()} NGC principal (back in Real Balance) +{" "}
+                {s.profitSoFar.toLocaleString()} NGC profit (withdrawable as Staked Profit)
               </p>
             )}
           </div>

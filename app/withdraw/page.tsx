@@ -3,25 +3,38 @@ import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
+type MeSummary = {
+  walletAddress: string | null;
+  realWithdrawableBalance: number;
+  staking: { profitAvailable: number };
+  withdrawalUnlock: { threshold: number; totalDeposited: number; met: boolean };
+};
+
 export default function WithdrawPage() {
   const { connected, publicKey } = useWallet();
   const [usdtAmount, setUsdtAmount] = useState(10);
+  const [source, setSource] = useState<"real" | "staking_profit">("real");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [linkedWallet, setLinkedWallet] = useState<string | null>(null);
+  const [me, setMe] = useState<MeSummary | null>(null);
   const [withdrawalsEnabled, setWithdrawalsEnabled] = useState<boolean | null>(null); // null = still loading
 
   useEffect(() => {
     fetch("/api/me")
       .then((r) => r.json())
-      .then((d) => setLinkedWallet(d.walletAddress ?? null));
+      .then(setMe);
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => setWithdrawalsEnabled(!!d.withdrawalsEnabled));
   }, []);
 
   const walletAddress = publicKey?.toBase58();
+  const linkedWallet = me?.walletAddress ?? null;
   const walletMismatch = linkedWallet && walletAddress && linkedWallet !== walletAddress;
+  const unlockMet = me?.withdrawalUnlock.met ?? false;
+  // Staked Profit only lights up once there's actually released profit
+  // to withdraw — i.e. after at least one stake has matured.
+  const stakingProfitActive = (me?.staking.profitAvailable ?? 0) > 0;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +44,7 @@ export default function WithdrawPage() {
     const res = await fetch("/api/withdrawals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usdtAmount, network: "Solana", walletAddress }),
+      body: JSON.stringify({ usdtAmount, network: "Solana", walletAddress, source }),
     });
     const data = await res.json();
     setLoading(false);
@@ -44,8 +57,12 @@ export default function WithdrawPage() {
         );
       } else if (data.error === "EXCEEDS_WITHDRAWABLE_BALANCE") {
         setMessage(
-          "That exceeds your withdrawable balance — your free signup bonus can never be withdrawn, only balance earned on top of it."
+          "That exceeds your Real Balance — your free signup bonus can never be withdrawn, only balance earned on top of it."
         );
+      } else if (data.error === "EXCEEDS_STAKING_PROFIT_BALANCE") {
+        setMessage("That exceeds your available Staked Profit.");
+      } else if (data.error === "DEPOSIT_REQUIREMENT_NOT_MET") {
+        setMessage(data.message ?? "Deposit requirement not met yet.");
       } else if (data.error === "WALLET_ALREADY_LINKED") {
         setMessage("This wallet is already linked to a different account.");
       } else if (data.error === "WALLET_MISMATCH") {
@@ -56,6 +73,7 @@ export default function WithdrawPage() {
       return;
     }
     setMessage("Withdrawal requested — pending admin review.");
+    fetch("/api/me").then((r) => r.json()).then(setMe);
   }
 
   return (
@@ -75,13 +93,53 @@ export default function WithdrawPage() {
       {withdrawalsEnabled === true && (
         <div className="card">
         <p className="text-xs text-muted mb-3">
-          Minimum $5, maximum $100 per day. Your free signup bonus never counts toward what you
-          can withdraw — only balance earned on top of it does.
+          Minimum $5, maximum $100 per day (combined across both balances below).
         </p>
-        <p className="text-xs text-brand mb-4">
-          One wallet per account: the first wallet you connect here becomes permanently linked to
-          your account — you'll always withdraw to that same wallet going forward.
-        </p>
+
+        {me && !unlockMet && (
+          <div className="bg-surface2 rounded-lg px-3 py-2 mb-3">
+            <p className="text-xs text-brand">
+              Deposit at least {me.withdrawalUnlock.threshold.toLocaleString()} NGC to unlock
+              withdrawals — you've deposited {me.withdrawalUnlock.totalDeposited.toLocaleString()} NGC
+              so far.
+            </p>
+          </div>
+        )}
+
+        <p className="text-xs text-muted uppercase tracking-wide mb-2">Withdraw from</p>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button
+            type="button"
+            disabled={!unlockMet}
+            onClick={() => setSource("real")}
+            className={
+              "rounded-lg py-2 text-sm border " +
+              (source === "real" ? "border-brand text-brand" : "border-white/10 text-muted") +
+              (!unlockMet ? " opacity-40" : "")
+            }
+          >
+            Real Balance
+            <div className="text-xs">{(me?.realWithdrawableBalance ?? 0).toLocaleString()} NGC</div>
+          </button>
+          <button
+            type="button"
+            disabled={!unlockMet || !stakingProfitActive}
+            onClick={() => setSource("staking_profit")}
+            className={
+              "rounded-lg py-2 text-sm border " +
+              (source === "staking_profit" ? "border-brand text-brand" : "border-white/10 text-muted") +
+              (!unlockMet || !stakingProfitActive ? " opacity-40" : "")
+            }
+          >
+            Staked Profit
+            <div className="text-xs">{(me?.staking.profitAvailable ?? 0).toLocaleString()} NGC</div>
+          </button>
+        </div>
+        {!stakingProfitActive && (
+          <p className="text-xs text-muted -mt-2 mb-3">
+            Staked Profit unlocks once your 6-month stake matures and profit is released.
+          </p>
+        )}
 
         <p className="text-xs text-muted uppercase tracking-wide mb-2">Connect wallet</p>
         <WalletMultiButton style={{ width: "100%", justifyContent: "center" }} />
@@ -100,7 +158,7 @@ export default function WithdrawPage() {
               <label className="text-sm text-muted">USDT amount</label>
               <input
                 type="number"
-                min={5}
+                min={10}
                 max={100}
                 className="input mt-1"
                 value={usdtAmount}
@@ -110,7 +168,7 @@ export default function WithdrawPage() {
             {message && <p className="text-sm text-brand">{message}</p>}
             <button
               type="submit"
-              disabled={loading || !!walletMismatch}
+              disabled={loading || !!walletMismatch || !unlockMet}
               className="btn-primary w-full disabled:opacity-40"
             >
               {loading ? "Submitting…" : "SUBMIT WITHDRAWAL REQUEST"}

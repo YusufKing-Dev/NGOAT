@@ -31,7 +31,7 @@ export async function GET() {
   return NextResponse.json({
     enabled: !!(config?.gamesEnabled && config?.numberPickEnabled),
     minStake: config?.numberPickMinStake ?? 10000,
-    rangeMax: config?.numberPickRangeMax ?? 30,
+    rangeMax: config?.numberPickRangeMax ?? 20,
     picksPerEntry: 3,
     jackpotMultiplier: config?.numberPickRewardMultiplier ?? 1.8,
     goodMultiplier: config?.numberPickGoodMultiplier ?? 1.2,

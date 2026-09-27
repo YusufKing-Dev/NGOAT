@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addLedgerEntry } from "@/lib/ledger";
-import { computeAccrued, DURATION_DAYS } from "@/lib/staking";
-import { StakeDuration } from "@prisma/client";
+import { computeSimpleProfit, DURATION_DAYS } from "@/lib/staking";
+import { LedgerType, StakeDuration } from "@prisma/client";
 
 function isAuthorized(req: NextRequest) {
   return req.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
@@ -25,19 +25,33 @@ export async function GET(req: NextRequest) {
   for (const stake of matured) {
     try {
       const days = DURATION_DAYS[stake.duration as StakeDuration];
-      const releaseAmount = computeAccrued(stake.principal, stake.dailyRatePct, days);
+      const profit = computeSimpleProfit(stake.principal, stake.dailyRatePct, days);
+      const releaseAmount = stake.principal + profit;
 
+      // Principal returns straight to normal spendable balance.
       await addLedgerEntry({
         userId: stake.userId,
-        type: "STAKE_RELEASE",
-        amount: releaseAmount,
-        description: `Stake matured (${stake.duration}): ${stake.principal.toLocaleString()} NGC + growth`,
+        type: LedgerType.STAKE_RELEASE,
+        amount: stake.principal,
+        description: `Stake matured (${stake.duration}): ${stake.principal.toLocaleString()} NGC principal returned`,
         referencePrefix: "stkr",
       });
 
+      // Profit lands in its own bucket — only withdrawable via the
+      // "Staked Profit" option, never lumped into Real Balance.
+      if (profit > 0) {
+        await addLedgerEntry({
+          userId: stake.userId,
+          type: LedgerType.STAKE_PROFIT_RELEASE,
+          amount: profit,
+          description: `Stake matured (${stake.duration}): ${profit.toLocaleString()} NGC profit available to withdraw`,
+          referencePrefix: "stkp",
+        });
+      }
+
       await prisma.stake.update({
         where: { id: stake.id },
-        data: { status: "RELEASED", releasedAt: new Date(), releaseAmount },
+        data: { status: "RELEASED", releasedAt: new Date(), releaseAmount, profitAmount: profit },
       });
       released++;
     } catch (e: any) {

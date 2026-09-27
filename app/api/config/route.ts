@@ -15,14 +15,15 @@ export async function GET() {
 
   return NextResponse.json({
     withdrawalsEnabled: config?.withdrawalsEnabled ?? false,
-    minWithdrawalUsdt: config?.minWithdrawalUsdt ?? 5,
+    minWithdrawalUsdt: config?.minWithdrawalUsdt ?? 10,
     maxDailyWithdrawalUsdt: config?.maxDailyWithdrawalUsdt ?? 100,
     minBetCredits: config?.minBetCredits ?? 5000,
     minSlipLegs: config?.minSlipLegs ?? 5,
     rewardMultiplier: config?.rewardMultiplier ?? 0.8,
-    referralBonusCredits: config?.referralBonusCredits ?? 500,
+    referralBonusCredits: config?.referralBonusCredits ?? 2000,
     stakingMinCredits: config?.stakingMinCredits ?? 40000,
-    stakingDailyRatePct: config?.stakingDailyRatePct ?? 0.1,
+    stakingDailyRatePct: config?.stakingDailyRatePct ?? 0.01,
+    stakingEnabled: config?.stakingEnabled ?? true,
     signupBonusCredits: config?.signupBonusCredits ?? 20000,
     usdtToCreditsRate: config?.usdtToCreditsRate ?? 2000,
   });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { addLedgerEntry, issueSignupBonus } from "@/lib/ledger";
+import { issueSignupBonus } from "@/lib/ledger";
 
 // Reads live data / has side effects on every request — must never
 // be statically pre-rendered at build time.
@@ -45,25 +45,10 @@ export async function GET(req: NextRequest) {
     if (e.message !== "BONUS_ALREADY_ISSUED") throw e;
   }
 
-  // Pay the referral bonus now, if this user was referred and it
-  // hasn't already been paid (referralBonusPaid guards against a
-  // double-credit if this link is ever hit twice).
-  if (user.referredByUserId && !user.referralBonusPaid) {
-    const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-    const bonus = config?.referralBonusCredits ?? 500;
-
-    await addLedgerEntry({
-      userId: user.referredByUserId,
-      type: "REFERRAL_BONUS",
-      amount: bonus,
-      description: "Referral bonus — referred user verified their email",
-      referencePrefix: "ref",
-    });
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { referralBonusPaid: true },
-    });
-  }
+  // Referral bonus is NOT paid here anymore — it's paid on the
+  // referred user's FIRST APPROVED DEPOSIT instead, via
+  // lib/ledger.ts:onDepositApproved(). This stops referral-bonus
+  // farming via verified accounts that never put real money in.
 
   return NextResponse.redirect(`${baseUrl}/login?verify=success`);
 }

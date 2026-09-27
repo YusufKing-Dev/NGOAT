@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { debitWithCheck } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
-import { DURATION_DAYS, computeAccrued } from "@/lib/staking";
+import { DURATION_DAYS, computeSimpleProfit } from "@/lib/staking";
 import { StakeDuration } from "@prisma/client";
 
 // Reads live data / has side effects on every request — must never
@@ -18,20 +18,23 @@ export async function GET() {
     orderBy: { startedAt: "desc" },
   });
 
-  // For active stakes, add the value accrued SO FAR (elapsed days,
-  // capped at maturity) using the exact same compounding formula the
-  // release cron uses at full term — so this preview never disagrees
-  // with what actually pays out at maturity. Already-released stakes
-  // just report their real, final releaseAmount.
+  // For active stakes, add the PROFIT accrued so far (elapsed days,
+  // capped at maturity) using the exact same simple-interest formula
+  // the release cron uses at full term — so this preview never
+  // disagrees with what actually pays out at maturity. currentValue
+  // is principal + profitSoFar, shown for reference; only profitSoFar
+  // is ever actually withdrawable once released (see lib/ledger.ts).
+  // Already-released stakes report their real, final split.
   const withAccrued = stakes.map((s) => {
     if (s.status !== "ACTIVE") {
-      return { ...s, currentValue: s.releaseAmount ?? s.principal, profitSoFar: 0 };
+      const profit = s.profitAmount ?? 0;
+      return { ...s, currentValue: s.releaseAmount ?? s.principal, profitSoFar: profit };
     }
     const now = new Date();
     const elapsedMs = Math.min(now.getTime(), s.maturesAt.getTime()) - s.startedAt.getTime();
     const elapsedDays = Math.max(0, elapsedMs / (24 * 60 * 60 * 1000));
-    const currentValue = computeAccrued(s.principal, s.dailyRatePct, elapsedDays);
-    return { ...s, currentValue, profitSoFar: currentValue - s.principal };
+    const profitSoFar = computeSimpleProfit(s.principal, s.dailyRatePct, elapsedDays);
+    return { ...s, currentValue: s.principal + profitSoFar, profitSoFar };
   });
 
   return NextResponse.json({ stakes: withAccrued });
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
   const minStake = config?.stakingMinCredits ?? 40000;
-  const dailyRate = config?.stakingDailyRatePct ?? 0.1;
+  const dailyRate = config?.stakingDailyRatePct ?? 0.01;
 
   if (config?.stakingEnabled === false) {
     return NextResponse.json({ error: "STAKING_DISABLED" }, { status: 403 });

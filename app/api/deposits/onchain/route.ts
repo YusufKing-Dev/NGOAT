@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { prisma } from "@/lib/prisma";
-import { addLedgerEntry } from "@/lib/ledger";
+import { addLedgerEntry, onDepositApproved } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
 import {
   NGOAT_DEPOSIT_WALLET,
@@ -126,6 +126,9 @@ export async function POST(req: NextRequest) {
     description: `On-chain deposit verified: ${transferredUsdt} USDT`,
     referencePrefix: "dep",
   });
+
+  // Lifetime-deposit total + first-deposit referral bonus.
+  await onDepositApproved(user.id, creditsToIssue);
 
   return NextResponse.json({ ok: true, creditsIssued: creditsToIssue });
 }
