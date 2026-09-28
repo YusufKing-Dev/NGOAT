@@ -3,6 +3,11 @@ const BASE_URL = "https://api.football-data.org/v4";
 // Competitions covered by football-data.org's free tier.
 export const DEFAULT_COMPETITIONS = ["PL", "PD", "BL1", "SA", "FL1", "CL"];
 
+// How many days ahead fixtures are imported AND shown on the predictions
+// page. One shared number so the import and the page can never drift
+// apart. Change it here and both follow.
+export const FIXTURE_WINDOW_DAYS = 7;
+
 function apiKey(): string {
   const key = process.env.FOOTBALL_DATA_API_KEY;
   if (!key) throw new Error("FOOTBALL_DATA_API_KEY is not set");
@@ -27,7 +32,10 @@ async function fdFetch(path: string) {
  * the season (hundreds per competition) — far too many to list on a
  * predictions page in one go.
  */
-export async function fetchScheduledFixtures(competitionCode: string, daysAhead = 21) {
+export async function fetchScheduledFixtures(
+  competitionCode: string,
+  daysAhead = FIXTURE_WINDOW_DAYS
+) {
   const dateFrom = new Date().toISOString().slice(0, 10);
   const dateTo = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   // NOTE: no `status=SCHEDULED` filter. football-data.org flips a match

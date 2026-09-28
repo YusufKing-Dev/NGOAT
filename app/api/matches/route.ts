@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
+import { FIXTURE_WINDOW_DAYS } from "@/lib/footballData";
 
 // Reads live data / has side effects on every request — must never
 // be statically pre-rendered at build time.
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // Only matches kicking off within the next FIXTURE_WINDOW_DAYS days
+  // are shown on the predictions page. Fixtures already imported
+  // further out stay in the database untouched and simply appear
+  // once they come inside the window.
+  const windowEnd = new Date(Date.now() + FIXTURE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const matches = await prisma.match.findMany({
-    where: { status: "UPCOMING" },
+    where: { status: "UPCOMING", kickoff: { lte: windowEnd } },
     orderBy: { kickoff: "asc" },
   });
   return NextResponse.json({ matches });
