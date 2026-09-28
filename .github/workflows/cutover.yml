@@ -35,6 +35,9 @@ jobs:
 
       - run: npm install --no-audit --no-fund
 
+      - name: Clear failed migration record (idempotent SQL, safe to re-run)
+        run: npx prisma migrate resolve --rolled-back 20260926140000_staking_cutover_migration || echo "Nothing to resolve"
+
       - name: Apply pending DB migrations
         run: npx prisma migrate deploy
         env:
