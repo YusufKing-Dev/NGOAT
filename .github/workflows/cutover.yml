@@ -37,6 +37,10 @@ jobs:
 
       - name: Apply pending DB migrations
         run: npx prisma migrate deploy
+        env:
+          # Supavisor session pooler can hang on pg_advisory_lock (P1002).
+          # Safe here: this workflow is manual/one-time, nothing else migrates.
+          PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: "1"
 
       - name: Run cutover
         run: |
