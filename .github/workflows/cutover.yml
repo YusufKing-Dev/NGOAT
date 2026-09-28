@@ -1,0 +1,47 @@
+name: Sept 28 cutover (manual, one-time)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run = preview only, apply = real writes"
+        type: choice
+        options: [dry-run, apply]
+        default: dry-run
+      confirm:
+        description: 'For apply, type exactly: STAKE EVERYONE'
+        required: false
+        default: ""
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - name: Guard
+        if: ${{ inputs.mode == 'apply' && inputs.confirm != 'STAKE EVERYONE' }}
+        run: |
+          echo "Apply requires confirm = STAKE EVERYONE"
+          exit 1
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply pending DB migrations
+        run: npx prisma migrate deploy
+
+      - name: Run cutover
+        run: |
+          if [ "${{ inputs.mode }}" = "apply" ]; then
+            npx --yes tsx@4 scripts/cutover.ts --apply
+          else
+            npx --yes tsx@4 scripts/cutover.ts
+          fi
