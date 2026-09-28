@@ -85,16 +85,21 @@ export async function issueSignupBonus(userId: string) {
       throw new Error("BONUS_ALREADY_ISSUED");
     }
 
-    const reference = `bonus_${randomUUID().slice(0, 12)}`;
-    await tx.ledgerEntry.create({
-      data: {
-        userId,
-        type: LedgerType.SIGNUP_BONUS,
-        amount: bonus,
-        description: "Free signup bonus",
-        reference,
-      },
-    });
+    // signupBonusCredits = 0 means the bonus is currently switched off.
+    // Still mark the user as issued (no ledger noise) so nobody gets a
+    // retroactive bonus if it's turned back on later.
+    if (bonus > 0) {
+      const reference = `bonus_${randomUUID().slice(0, 12)}`;
+      await tx.ledgerEntry.create({
+        data: {
+          userId,
+          type: LedgerType.SIGNUP_BONUS,
+          amount: bonus,
+          description: "Free signup bonus",
+          reference,
+        },
+      });
+    }
 
     await tx.user.update({
       where: { id: userId },
@@ -190,4 +195,4 @@ export async function onDepositApproved(userId: string, creditsIssued: number) {
       data: { referralBonusPaid: true },
     });
   }
-}
+                             }
