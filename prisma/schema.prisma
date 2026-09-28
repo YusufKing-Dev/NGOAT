@@ -60,6 +60,12 @@ enum WithdrawalStatus {
   REJECTED
 }
 
+enum Asset {
+  USDT
+  SOL
+  NGOAT
+}
+
 enum MatchStatus {
   UPCOMING
   LOCKED
@@ -193,7 +199,11 @@ model DepositRequest {
   id               String        @id @default(cuid())
   userId           String
   user             User          @relation(fields: [userId], references: [id])
+  // Despite the name (kept as-is to avoid touching every call site),
+  // this is now the USD-EQUIVALENT value of whatever `asset` was
+  // actually sent, not literally USDT — see lib/assetPricing.ts.
   usdtAmount       Float
+  asset            Asset         @default(USDT)
   network          String
   txHash           String        @unique // DB-level guard against ever crediting the same on-chain tx twice
   payoutWalletUsed String
@@ -212,7 +222,11 @@ model WithdrawalRequest {
   id            String           @id @default(cuid())
   userId        String
   user          User             @relation(fields: [userId], references: [id])
+  // Same repurposing as DepositRequest.usdtAmount — USD-equivalent
+  // value of whatever `asset` the user is withdrawing, not literally
+  // USDT.
   usdtAmount    Float
+  asset         Asset            @default(USDT)
   network       String
   walletAddress String
   status        WithdrawalStatus @default(PENDING)
@@ -358,6 +372,22 @@ model PlatformConfig {
   // Solana on-chain deposit config (wallet-connect flow)
   solanaUsdtMint    String? // USDT SPL-token mint address on Solana
   solanaRpcEndpoint String? // e.g. an Alchemy/Helius RPC URL
+
+  // Multi-asset deposits/withdrawals (USDT, SOL, NGOAT — all valued in
+  // USD then converted via usdtToCreditsRate, see lib/assetPricing.ts).
+  // Live prices come from Jupiter first; these are only the fallback
+  // used when Jupiter has no price (e.g. NGOAT before real DEX
+  // liquidity exists) or the price request fails. Keep these current —
+  // especially solPriceUsdFallback, since SOL moves fast.
+  solPriceUsdFallback   Float @default(150)
+  ngoatPriceUsdFallback Float @default(0.00005)
+
+  // Leaderboard season reset. When set, /api/leaderboard only sums
+  // PREDICTION_REWARD ledger entries created on or after this
+  // timestamp — everyone's actual NGC balance is untouched, only the
+  // rankings start fresh. Null (the default) means "all-time", which
+  // is the current/original behavior.
+  leaderboardResetAt DateTime?
 
   // Comma-separated extra disposable-email domains to block at
   // registration, on top of the built-in list in lib/security.ts.

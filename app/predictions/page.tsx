@@ -43,7 +43,7 @@ export default async function PredictionsPage() {
       <div className="card mb-4">
         <h2 className="text-sm text-brand uppercase tracking-wide mb-3">How it works</h2>
         <ol className="space-y-2 text-sm">
-          <li>1. Create an account — get {signupBonus.toLocaleString()} NGC free</li>
+          <li>1. Create an account </li>
           <li>2. Predict football match outcomes, minimum {minBet.toLocaleString()} NGC per bet</li>
           <li>3. Win, climb the leaderboard, earn more NGC</li>
           <li>4. Redeem eligible NGC for USDT</li>

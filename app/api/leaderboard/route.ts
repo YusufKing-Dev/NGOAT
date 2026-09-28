@@ -7,9 +7,17 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
+
   const rewardEntries = await prisma.ledgerEntry.groupBy({
     by: ["userId"],
-    where: { type: "PREDICTION_REWARD" },
+    where: {
+      type: "PREDICTION_REWARD",
+      // Only counts entries from the current leaderboard season —
+      // see PlatformConfig.leaderboardResetAt. Undefined (not applied)
+      // when there's no reset point, which means "all-time".
+      ...(config?.leaderboardResetAt ? { createdAt: { gte: config.leaderboardResetAt } } : {}),
+    },
     _sum: { amount: true },
     _count: { _all: true },
   });

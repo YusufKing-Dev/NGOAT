@@ -86,6 +86,17 @@ type LedgerEntry = {
   user: { username: string; email: string };
 };
 
+type NumberPickDrawRow = {
+  id: string;
+  weekStart: string;
+  drawAt: string;
+  winningNumbers: number[];
+  settled: boolean;
+  entryCount: number;
+  totalStaked: number;
+  totalPaidOut: number;
+};
+
 type PlatformConfig = {
   id: string;
   usdtToCreditsRate: number;
@@ -123,7 +134,7 @@ type PlatformConfig = {
   numberPickSmallMultiplier: number;
 };
 
-const TABS = ["Users", "Deposits", "Withdrawals", "Predictions", "Stakes", "Activity", "Matches", "Games P/L", "Settings"] as const;
+const TABS = ["Users", "Deposits", "Withdrawals", "Predictions", "Stakes", "Draws", "Activity", "Matches", "Games P/L", "Settings"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminPage() {
@@ -139,6 +150,7 @@ export default function AdminPage() {
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [gamesPL, setGamesPL] = useState<any[]>([]);
   const [gamesPLError, setGamesPLError] = useState<string | null>(null);
+  const [draws, setDraws] = useState<NumberPickDrawRow[]>([]);
   const [config, setConfig] = useState<PlatformConfig | null>(null);
   const [configForm, setConfigForm] = useState<Record<string, string>>({});
   const [configSaving, setConfigSaving] = useState(false);
@@ -201,6 +213,9 @@ export default function AdminPage() {
     safeJson<{ stakes: Stake[] }>("/api/admin/stakes").then((d) => d && setStakes(d.stakes ?? []));
     safeJson<{ slips: PredictionSlip[] }>("/api/admin/predictions").then((d) => d && setSlips(d.slips ?? []));
     safeJson<{ entries: LedgerEntry[] }>("/api/admin/ledger").then((d) => d && setLedger(d.entries ?? []));
+    safeJson<{ draws: NumberPickDrawRow[] }>("/api/admin/number-pick-draws").then(
+      (d) => d && setDraws(d.draws ?? [])
+    );
     safeJson<{ games: any[] }>("/api/admin/games-pl").then((d) => {
       if (d) {
         setGamesPL(d.games ?? []);
@@ -492,6 +507,13 @@ export default function AdminPage() {
           m.status.toLowerCase().includes(searchLower)
       )
     : matches;
+  const filteredDraws = searchLower
+    ? draws.filter(
+        (d) =>
+          new Date(d.weekStart).toDateString().toLowerCase().includes(searchLower) ||
+          d.winningNumbers.join(", ").includes(searchLower)
+      )
+    : draws;
   const filteredConfigKeys = (Object.keys(configForm) as (keyof typeof configForm)[])
     .filter(
       (key) =>
@@ -572,6 +594,8 @@ export default function AdminPage() {
             ? "Filter by username, email, wallet, network, status…"
             : tab === "Matches"
             ? "Filter by team or status…"
+            : tab === "Draws"
+            ? "Filter by week or winning numbers…"
             : tab === "Settings"
             ? "Filter settings fields…"
             : "Filter by username, email, type, amount, reference…"
@@ -960,6 +984,61 @@ export default function AdminPage() {
             {filteredLedger.length === 0 && (
               <p className="text-muted text-sm">{searchLower ? "No activity matches." : "No activity yet."}</p>
             )}
+          </div>
+        </section>
+      )}
+
+      {tab === "Draws" && (
+        <section className="card">
+          <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
+            Number Pick Draws <span className="normal-case text-xs">({filteredDraws.length})</span>
+          </h2>
+          {filteredDraws.length === 0 && <p className="text-muted text-sm">Loading…</p>}
+          <div className="space-y-3">
+            {filteredDraws.map((d) => {
+              const weekStart = new Date(d.weekStart);
+              const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
+              return (
+                <div key={d.id} className="border-b border-white/5 pb-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">
+                      Week of {weekStart.toDateString()} – {weekEnd.toDateString()}
+                    </p>
+                    <span
+                      className={
+                        "text-xs px-2 py-0.5 rounded " +
+                        (d.settled ? "bg-win/20 text-win" : "bg-white/10 text-muted")
+                      }
+                    >
+                      {d.settled ? "Settled" : "Upcoming"}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-muted mt-1">
+                    Draw reveal: {new Date(d.drawAt).toLocaleString()}
+                  </p>
+
+                  <p className="mt-2">
+                    {d.settled ? (
+                      <>
+                        Winning numbers:{" "}
+                        <span className="text-brand font-semibold text-base">
+                          {d.winningNumbers.join(" — ")}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted">Not drawn yet</span>
+                    )}
+                  </p>
+
+                  <p className="text-xs text-muted mt-1">
+                    {d.entryCount} {d.entryCount === 1 ? "entry" : "entries"} · staked{" "}
+                    {d.totalStaked.toLocaleString()} NGC
+                    {d.settled && <> · paid out {d.totalPaidOut.toLocaleString()} NGC</>}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

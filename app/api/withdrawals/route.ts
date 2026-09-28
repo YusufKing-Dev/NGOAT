@@ -3,12 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { getRealWithdrawableBalance, getStakingProfitBalance, debitWithCheck } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
 import { LedgerType } from "@prisma/client";
+import { DepositAsset } from "@/lib/solanaConfig";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
-  const { usdtAmount, network, walletAddress, source } = await req.json();
+  const { usdtAmount, asset, network, walletAddress, source } = await req.json();
+  const withdrawAsset: DepositAsset = asset === "SOL" || asset === "NGOAT" ? asset : "USDT";
   if (!usdtAmount || !network || !walletAddress) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
@@ -55,6 +57,11 @@ export async function POST(req: NextRequest) {
   const minUsdt = config?.minWithdrawalUsdt ?? 10;
   const maxDailyUsdt = config?.maxDailyWithdrawalUsdt ?? 100;
 
+  // NOTE: usdtAmount is (and always was) a USD-equivalent value, not
+  // literally USDT — the user picks how much value they want out, and
+  // `asset` says which token they want it paid in. The admin who pays
+  // the request manually converts this USD amount to the current
+  // market amount of `asset` at payout time.
   if (usdtAmount < minUsdt) {
     return NextResponse.json({ error: "BELOW_MIN_WITHDRAWAL", minUsdt }, { status: 400 });
   }
@@ -84,7 +91,9 @@ export async function POST(req: NextRequest) {
 
   // Daily cap: sum today's PENDING + PAID withdrawal requests (rejected
   // ones never actually went through, so they don't count against it).
-  // Applies across BOTH sources combined — one $100/day cap total.
+  // Applies across BOTH sources AND all assets combined — one $100/day
+  // cap total, since usdtAmount is always USD-equivalent regardless of
+  // which asset was picked.
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
   const todaysWithdrawals = await prisma.withdrawalRequest.aggregate({
@@ -125,7 +134,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       type: LedgerType.STAKE_PROFIT_RELEASE,
       amount: creditsNeeded,
-      description: `Staked profit withdrawal: ${usdtAmount} USDT to ${network}`,
+      description: `Staked profit withdrawal: $${usdtAmount} (${withdrawAsset}) to ${network}`,
       referencePrefix: "wd",
     });
   } else {
@@ -144,13 +153,13 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       type: LedgerType.REDEMPTION,
       amount: creditsNeeded,
-      description: `Withdrawal request: ${usdtAmount} USDT to ${network}`,
+      description: `Withdrawal request: $${usdtAmount} (${withdrawAsset}) to ${network}`,
       referencePrefix: "wd",
     });
   }
 
   const withdrawal = await prisma.withdrawalRequest.create({
-    data: { userId: user.id, usdtAmount, network, walletAddress, status: "PENDING" },
+    data: { userId: user.id, usdtAmount, asset: withdrawAsset, network, walletAddress, status: "PENDING" },
   });
 
   return NextResponse.json({ withdrawal });

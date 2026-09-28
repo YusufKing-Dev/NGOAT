@@ -139,7 +139,7 @@ export default function DashboardPage() {
           MY PREDICTIONS
         </Link>
         <Link href="/withdraw" className="btn-secondary text-center">
-          WITHDRAW USDT
+          WITHDRAW
         </Link>
         <Link href="/spinthewheel" className="btn-secondary text-center">
           🎡 SPIN THE WHEEL

@@ -137,7 +137,7 @@ export default async function HomePage() {
         </p>
         <div className="flex flex-col gap-3">
           <Link href="/predictions" className="btn-primary">
-            Join $NGOAT — Get {signupBonus.toLocaleString()} NGC Free
+            Join $NGOAT
           </Link>
           <WhitepaperModal />
           <a

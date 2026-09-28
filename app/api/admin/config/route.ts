@@ -28,6 +28,8 @@ const NUMERIC_FIELDS = [
   "numberPickRewardMultiplier",
   "numberPickGoodMultiplier",
   "numberPickSmallMultiplier",
+  "solPriceUsdFallback",
+  "ngoatPriceUsdFallback",
 ] as const;
 
 const STRING_FIELDS = [
