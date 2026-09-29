@@ -1335,7 +1335,7 @@ export default function AdminPage() {
                   <p>
                     {m.homeTeam} vs {m.awayTeam} · {m.status}
                   </p>
-                  {m.status === "UPCOMING" && (
+                  {(m.status === "UPCOMING" || m.status === "LOCKED") && (
                     <button onClick={() => settleMatch(m.id)} className="btn-secondary text-xs py-1 px-3 mt-1">
                       Settle
                     </button>
@@ -1349,4 +1349,4 @@ export default function AdminPage() {
       )}
     </div>
   );
-  }
+    }
