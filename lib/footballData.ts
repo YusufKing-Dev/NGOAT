@@ -6,7 +6,7 @@ export const DEFAULT_COMPETITIONS = ["PL", "PD", "BL1", "SA", "FL1", "CL"];
 // How many days ahead fixtures are imported AND shown on the predictions
 // page. One shared number so the import and the page can never drift
 // apart. Change it here and both follow.
-export const FIXTURE_WINDOW_DAYS = 21;
+export const FIXTURE_WINDOW_DAYS = 7;
 
 function apiKey(): string {
   const key = process.env.FOOTBALL_DATA_API_KEY;
