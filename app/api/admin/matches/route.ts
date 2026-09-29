@@ -10,9 +10,20 @@ export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
-  const matches = await prisma.match.findMany({
-    orderBy: { kickoff: "desc" },
-    take: 100,
-  });
-  return NextResponse.json({ matches });
+  // Always return EVERY unsettled match (UPCOMING / LOCKED), no matter
+  // how old its kickoff is, so nothing that still needs settling can
+  // fall off the list. Finished matches are capped at the latest 100.
+  const [open, done] = await Promise.all([
+    prisma.match.findMany({
+      where: { status: { in: ["UPCOMING", "LOCKED"] } },
+      orderBy: { kickoff: "desc" },
+    }),
+    prisma.match.findMany({
+      where: { status: { in: ["SETTLED", "CANCELLED"] } },
+      orderBy: { kickoff: "desc" },
+      take: 100,
+    }),
+  ]);
+
+  return NextResponse.json({ matches: [...open, ...done] });
 }
