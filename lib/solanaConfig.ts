@@ -5,7 +5,7 @@
 // associated token account for each mint.
 export const NGOAT_DEPOSIT_WALLET = "HjUowGjNtsx3RNy74HkCLxDtdo35o82xvkDD4qr9rfuS";
 
-export const USDT_MINT_ADDRESS = "HyFhf751PhTv5ANAK91kEsk2fCphzCYd21u1RH34V7M3";
+export const USDT_MINT_ADDRESS = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
 export const NGOAT_MINT_ADDRESS = "8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump";
 
 // Solana's native token has no mint account of its own, but Jupiter's
