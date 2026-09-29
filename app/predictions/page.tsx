@@ -7,7 +7,6 @@ export const dynamic = "force-dynamic";
 
 export default async function PredictionsPage() {
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-  const signupBonus = config?.signupBonusCredits ?? 20000;
   const minBet = config?.minBetCredits ?? 5000;
   const rate = config?.usdtToCreditsRate ?? 2000;
 
@@ -18,7 +17,7 @@ export default async function PredictionsPage() {
       </Link>
 
       <p className="text-brand text-sm font-semibold tracking-widest uppercase mb-2 mt-4">
-        Use case — Free {signupBonus.toLocaleString()} NGC to start
+        Use case — Football predictions
       </p>
       <h1 className="scoreboard text-5xl leading-none mb-3">
         THE GOAT OF

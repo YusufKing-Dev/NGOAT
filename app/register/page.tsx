@@ -28,7 +28,6 @@ function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
-  const [signupBonus, setSignupBonus] = useState(20000);
 
   const ERROR_MESSAGES: Record<string, string> = {
     INVALID_INPUT: "Please fill in every field (password needs at least 8 characters).",
@@ -38,14 +37,6 @@ function RegisterForm() {
     RATE_LIMITED: "Too many attempts from this connection. Please try again in a little while.",
     TURNSTILE_FAILED: "Verification check failed — please try again.",
   };
-
-  useEffect(() => {
-    // Reflect the admin's live signup bonus, never a hardcoded copy
-    // that can drift out of sync with what actually gets paid.
-    fetch("/api/config")
-      .then((r) => r.json())
-      .then((d) => setSignupBonus(d.signupBonusCredits ?? 20000));
-  }, []);
 
   useEffect(() => {
     // The Turnstile script is loaded globally in app/layout.tsx. It
@@ -100,8 +91,7 @@ function RegisterForm() {
         <h1 className="scoreboard text-3xl">CHECK YOUR EMAIL</h1>
         <p className="text-muted text-sm">
           We've sent a verification link to <span className="text-ink">{form.email}</span>. Click
-          it to activate your account and log in — your {signupBonus.toLocaleString()} NGC bonus
-          is already waiting.
+          it to activate your account and log in.
         </p>
         <p className="text-xs text-muted">
           Didn't get it? Check spam, or head to the login page to resend it.
@@ -114,7 +104,7 @@ function RegisterForm() {
     <div className="pt-8">
       <h1 className="scoreboard text-3xl mb-1">JOIN NGOAT</h1>
       <p className="text-muted text-sm mb-6">
-        Get {signupBonus.toLocaleString()} NGC free the moment you verify your email.
+        Create your account and start predicting.
       </p>
 
       <form onSubmit={handleSubmit} className="auth-form">

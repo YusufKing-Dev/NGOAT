@@ -76,6 +76,10 @@ export async function debitWithCheck(params: {
  * this once, right after a new user is created.
  */
 export async function issueSignupBonus(userId: string) {
+  // DISCONTINUED: the signup bonus is permanently switched off. Kept as a
+  // harmless no-op so nothing that still imports it breaks.
+  return;
+  // eslint-disable-next-line no-unreachable
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
   const bonus = config?.signupBonusCredits ?? 20000;
 
@@ -120,12 +124,10 @@ export async function issueSignupBonus(userId: string) {
  * restriction — there is no separate wagering-requirement gate.
  */
 export async function getWithdrawableBalance(userId: string): Promise<number> {
-  const [balance, user] = await Promise.all([
-    getBalance(userId),
-    prisma.user.findUnique({ where: { id: userId } }),
-  ]);
-  const floor = user?.bonusFloor ?? 0;
-  return Math.max(balance - floor, 0);
+  // Signup bonus has been discontinued, so there is no locked floor any
+  // more: the whole balance is withdrawable.
+  const balance = await getBalance(userId);
+  return Math.max(balance, 0);
 }
 
 /**

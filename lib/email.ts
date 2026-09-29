@@ -36,11 +36,11 @@ export async function sendVerificationEmail(to: string, verifyUrl: string) {
       from: `NGOAT <${fromEmail}>`,
       to: [to],
       subject: "Verify your NGOAT account",
-      text: `Welcome to NGOAT!\n\nVerify your email to activate your account and claim your 20,000 NGC signup bonus:\n\n${verifyUrl}\n\nIf you didn't create this account, you can ignore this email.`,
+      text: `Welcome to NGOAT!\n\nVerify your email to activate your account:\n\n${verifyUrl}\n\nIf you didn't create this account, you can ignore this email.`,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
           <h2 style="color: #008751;">Welcome to NGOAT 🐐</h2>
-          <p>Verify your email to activate your account and claim your 20,000 NGC signup bonus.</p>
+          <p>Verify your email to activate your account.</p>
           <p style="margin: 24px 0;">
             <a href="${verifyUrl}" style="background: #008751; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
               Verify my email

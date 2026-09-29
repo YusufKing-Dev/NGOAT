@@ -106,7 +106,6 @@ const ROADMAP = [
 
 export default async function HomePage() {
   const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-  const signupBonus = config?.signupBonusCredits ?? 20000;
 
   return (
     <div className="pt-8 space-y-10">

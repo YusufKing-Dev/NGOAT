@@ -116,9 +116,6 @@ export default function DashboardPage() {
               )
             </span>
           </p>
-          <p className="text-xs text-muted mt-1">
-            Your free signup bonus is never withdrawable — only balance earned on top of it.
-          </p>
           {!data.withdrawalUnlock.met && (
             <p className="text-xs text-brand mt-1">
               Deposit at least {data.withdrawalUnlock.threshold.toLocaleString()} NGC to unlock

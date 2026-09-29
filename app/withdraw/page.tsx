@@ -97,7 +97,7 @@ export default function WithdrawPage() {
         );
       } else if (data.error === "EXCEEDS_WITHDRAWABLE_BALANCE") {
         setMessage(
-          "That exceeds your Real Balance — your free signup bonus can never be withdrawn, only balance earned on top of it."
+          "That exceeds your withdrawable balance."
         );
       } else if (data.error === "EXCEEDS_STAKING_PROFIT_BALANCE") {
         setMessage("That exceeds your available Staked Profit.");
