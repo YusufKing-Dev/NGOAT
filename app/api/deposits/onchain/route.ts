@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { addLedgerEntry, onDepositApproved } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
 import { creditsForAsset } from "@/lib/assetPricing";
+import { depositProofMessage, DEPOSIT_PROOF_MAX_AGE_MS } from "@/lib/walletMessages";
+import { verifyWalletSignature } from "@/lib/walletProof";
 import {
   NGOAT_DEPOSIT_WALLET,
   USDT_MINT_ADDRESS,
@@ -32,11 +34,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "DEPOSITS_DISABLED" }, { status: 403 });
   }
 
-  const { signature, asset, amount, walletAddress } = await req.json();
+  const { signature, asset, amount, walletAddress, walletSignature, signedAt } = await req.json();
   const depositAsset: DepositAsset = asset === "SOL" || asset === "NGOAT" ? asset : "USDT";
 
   if (!signature || !amount || !walletAddress) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
+  }
+
+  // Proof that the person claiming this deposit controls the wallet that
+  // sent it. Transaction signatures are public on the blockchain, so
+  // without this anyone could claim someone else's deposit as their own.
+  if (typeof walletSignature !== "string" || typeof signedAt !== "number") {
+    return NextResponse.json({ error: "WALLET_PROOF_REQUIRED" }, { status: 400 });
+  }
+  if (Math.abs(Date.now() - signedAt) > DEPOSIT_PROOF_MAX_AGE_MS) {
+    return NextResponse.json({ error: "WALLET_PROOF_EXPIRED" }, { status: 400 });
+  }
+  if (!verifyWalletSignature(walletAddress, depositProofMessage(user.id, walletAddress, signedAt), walletSignature)) {
+    return NextResponse.json({ error: "WALLET_PROOF_INVALID" }, { status: 400 });
   }
 
   // App-level idempotency check (fast path). The DB's unique constraint
@@ -61,6 +76,14 @@ export async function POST(req: NextRequest) {
   }
   if (!tx || tx.meta?.err) {
     return NextResponse.json({ error: "TRANSACTION_NOT_FOUND_OR_FAILED" }, { status: 400 });
+  }
+
+  // The wallet that proved ownership above must be the one that actually
+  // sent (and paid the fee for) this transaction — the first account key
+  // of a Solana transaction is its fee payer / sender.
+  const feePayer = tx.transaction.message.accountKeys[0]?.pubkey.toBase58();
+  if (feePayer !== walletAddress) {
+    return NextResponse.json({ error: "SENDER_MISMATCH" }, { status: 403 });
   }
 
   const recipient = new PublicKey(NGOAT_DEPOSIT_WALLET);

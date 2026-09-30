@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { bytesToBase64, depositProofMessage } from "@/lib/walletMessages";
 import { PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
@@ -32,7 +33,7 @@ const SPL_MINTS: Record<"USDT" | "NGOAT", string> = {
 
 export default function BuyNgoatPage() {
   const { connection } = useConnection();
-  const { connected, publicKey, sendTransaction } = useWallet();
+  const { connected, publicKey, sendTransaction, signMessage } = useWallet();
   const [asset, setAsset] = useState<DepositAsset>("USDT");
   const [usdAmount, setUsdAmount] = useState(MIN_DEPOSIT_USDT);
   const [quote, setQuote] = useState<{ price: number; live: boolean; ngcPerUsd: number } | null>(null);
@@ -143,6 +144,30 @@ export default function BuyNgoatPage() {
         onChainAmount = Number(amountRaw) / 10 ** mintInfo.decimals;
       }
 
+      // Prove this wallet is yours BEFORE any money moves, by signing a
+      // free message. The server later checks that this same wallet is
+      // the one that sent the deposit.
+      if (!signMessage) {
+        setStatus(
+          "This wallet can't sign messages, which is needed to verify your deposit. Please use Phantom or Solflare."
+        );
+        setBusy(false);
+        return;
+      }
+      setStatus("Sign the free message in your wallet to verify it's yours…");
+      const meRes = await fetch("/api/me");
+      const me = await meRes.json();
+      if (!meRes.ok || !me?.id) {
+        setStatus("Please log in again and retry.");
+        setBusy(false);
+        return;
+      }
+      const signedAt = Date.now();
+      const proofBytes = await signMessage(
+        new TextEncoder().encode(depositProofMessage(me.id, publicKey.toBase58(), signedAt))
+      );
+      const walletSignature = bytesToBase64(proofBytes);
+
       setStatus("Waiting for wallet approval…");
       const signature = await sendTransaction(tx, connection);
 
@@ -159,6 +184,8 @@ export default function BuyNgoatPage() {
           asset,
           amount: onChainAmount,
           walletAddress: publicKey.toBase58(),
+          walletSignature,
+          signedAt,
         }),
       });
       const data = await res.json();
@@ -167,6 +194,8 @@ export default function BuyNgoatPage() {
         setStatus(
           data.error === "ALREADY_CREDITED"
             ? "This transaction was already credited."
+            : data.error === "SENDER_MISMATCH" || data.error === "WALLET_PROOF_INVALID"
+            ? "This deposit doesn't match the wallet that signed. Contact support with your transaction signature: " + signature
             : "Verification failed — contact support with your transaction signature: " + signature
         );
       } else {

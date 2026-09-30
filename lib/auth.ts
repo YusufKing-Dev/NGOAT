@@ -45,7 +45,14 @@ export const authOptions: NextAuthOptions = {
         // (NextAuth surfaces this via the `error` query param) instead
         // of a generic "invalid credentials".
         if (!user.emailVerified) throw new Error("EMAIL_NOT_VERIFIED");
-        return { id: user.id, name: user.username, email: user.email, role: user.role } as any;
+        return {
+          id: user.id,
+          name: user.username,
+          email: user.email,
+          role: user.role,
+          // Remembered in the session so a later password change can sign this login out.
+          pwdAt: user.passwordChangedAt?.getTime() ?? 0,
+        } as any;
       },
     }),
     // Separate provider used only by the /admin/login form. Same
@@ -71,7 +78,14 @@ export const authOptions: NextAuthOptions = {
         if (!valid) return null;
         if (!user.emailVerified) throw new Error("EMAIL_NOT_VERIFIED");
         if (user.role !== "ADMIN") throw new Error("NOT_ADMIN");
-        return { id: user.id, name: user.username, email: user.email, role: user.role } as any;
+        return {
+          id: user.id,
+          name: user.username,
+          email: user.email,
+          role: user.role,
+          // Remembered in the session so a later password change can sign this login out.
+          pwdAt: user.passwordChangedAt?.getTime() ?? 0,
+        } as any;
       },
     }),
   ],
@@ -80,10 +94,31 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = (user as any).id;
         token.role = (user as any).role;
+        token.pwdAt = (user as any).pwdAt ?? 0;
+        return token;
+      }
+      // Existing session: if the password has changed since this login
+      // was issued, the login is no longer valid. This is what signs an
+      // account out on every other device after a password change/reset.
+      if (token.id) {
+        const u = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { passwordChangedAt: true },
+        });
+        const current = u?.passwordChangedAt?.getTime() ?? 0;
+        if (!u || ((token.pwdAt as number | undefined) ?? 0) !== current) {
+          token.id = undefined;
+          token.role = undefined;
+          token.invalid = true;
+        }
       }
       return token;
     },
     async session({ session, token }) {
+      if (token.invalid || !token.id) {
+        // Signed out: no user on the session.
+        return { expires: session.expires } as any;
+      }
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;

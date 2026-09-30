@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/my-predictions", label: "My Predictions" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/stake", label: "Stake" },
+  { href: "/change-password", label: "Change Password" },
 ];
 
 export default function NavMenu() {

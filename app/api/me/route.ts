@@ -76,5 +76,7 @@ export async function GET() {
     referralCode: dbUser?.referralCode ?? null,
     referralCount,
     walletAddress: dbUser?.walletAddress ?? null,
+    id: user.id,
+    withdrawalsHeldUntil: dbUser?.withdrawalsHeldUntil ?? null,
   });
 }

@@ -4,14 +4,17 @@ import { getRealWithdrawableBalance, getStakingProfitBalance, debitWithCheck } f
 import { getCurrentUser } from "@/lib/auth";
 import { LedgerType } from "@prisma/client";
 import { DepositAsset } from "@/lib/solanaConfig";
+import { withdrawalLinkMessage, WITHDRAWAL_PROOF_MAX_AGE_MS } from "@/lib/walletMessages";
+import { verifyWalletSignature } from "@/lib/walletProof";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
-  const { usdtAmount, asset, network, walletAddress, source } = await req.json();
+  const { usdtAmount: rawAmount, asset, network, walletAddress, source, walletSignature, signedAt } = await req.json();
   const withdrawAsset: DepositAsset = asset === "SOL" || asset === "NGOAT" ? asset : "USDT";
-  if (!usdtAmount || !network || !walletAddress) {
+  const usdtAmount = Number(rawAmount);
+  if (!Number.isFinite(usdtAmount) || usdtAmount <= 0 || !network || typeof walletAddress !== "string" || !walletAddress) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
   // "real" = ordinary spendable balance (deposits, winnings, matured
@@ -34,6 +37,19 @@ export async function POST(req: NextRequest) {
   }
 
   const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+
+  // Security hold: set for 24h after a forgot-password reset, so an
+  // account taken over via a hijacked inbox can't be cashed out at once.
+  if (dbUser?.withdrawalsHeldUntil && dbUser.withdrawalsHeldUntil > new Date()) {
+    return NextResponse.json(
+      {
+        error: "WITHDRAWALS_HELD",
+        until: dbUser.withdrawalsHeldUntil.toISOString(),
+        message: "Withdrawals are paused for a short time after a password reset.",
+      },
+      { status: 403 }
+    );
+  }
 
   // Neither withdrawal option lights up until the user has put real
   // money in — a lifetime total of at least withdrawalUnlockDepositCredits
@@ -70,22 +86,27 @@ export async function POST(req: NextRequest) {
   // becomes permanently linked. Every withdrawal after that must use
   // the exact same wallet. The DB's unique constraint on
   // User.walletAddress is what actually stops the same wallet being
-  // linked to a second account — this is the core anti-multi-account
-  // control, enforced here at withdrawal rather than at signup so the
-  // free bonus stays frictionless to claim.
+  // linked to a second account.
   if (dbUser?.walletAddress && dbUser.walletAddress !== walletAddress) {
     return NextResponse.json(
       { error: "WALLET_MISMATCH", linkedWallet: dbUser.walletAddress },
       { status: 400 }
     );
   }
-  if (!dbUser?.walletAddress) {
-    try {
-      await prisma.user.update({ where: { id: user.id }, data: { walletAddress } });
-    } catch {
-      // Unique constraint hit — this wallet is already linked to a
-      // different account.
-      return NextResponse.json({ error: "WALLET_ALREADY_LINKED" }, { status: 400 });
+
+  // FIRST withdrawal: the wallet must PROVE it belongs to this person by
+  // signing a message. A pasted or auto-filled address is no longer
+  // enough — nobody can link a wallet they don't control.
+  const needsLink = !dbUser?.walletAddress;
+  if (needsLink) {
+    if (typeof walletSignature !== "string" || typeof signedAt !== "number") {
+      return NextResponse.json({ error: "WALLET_PROOF_REQUIRED" }, { status: 400 });
+    }
+    if (Math.abs(Date.now() - signedAt) > WITHDRAWAL_PROOF_MAX_AGE_MS) {
+      return NextResponse.json({ error: "WALLET_PROOF_EXPIRED" }, { status: 400 });
+    }
+    if (!verifyWalletSignature(walletAddress, withdrawalLinkMessage(user.id, walletAddress, signedAt), walletSignature)) {
+      return NextResponse.json({ error: "WALLET_PROOF_INVALID" }, { status: 400 });
     }
   }
 
@@ -118,6 +139,8 @@ export async function POST(req: NextRequest) {
 
   const creditsNeeded = Math.round(usdtAmount * rate);
 
+  // Balance checks run BEFORE the wallet is linked, so a request that
+  // fails here can never lock a wallet onto the account.
   if (withdrawSource === "staking_profit") {
     // Staked Profit: only released profit from MATURED stakes is ever
     // withdrawable this way — this balance is naturally 0 until at
@@ -130,13 +153,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    await debitWithCheck({
-      userId: user.id,
-      type: LedgerType.STAKE_PROFIT_RELEASE,
-      amount: creditsNeeded,
-      description: `Staked profit withdrawal: $${usdtAmount} (${withdrawAsset}) to ${network}`,
-      referencePrefix: "wd",
-    });
   } else {
     // Real Balance: everything else — the free signup bonus is never
     // withdrawable, and currently-available staking profit is
@@ -149,13 +165,48 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    await debitWithCheck({
-      userId: user.id,
-      type: LedgerType.REDEMPTION,
-      amount: creditsNeeded,
-      description: `Withdrawal request: $${usdtAmount} (${withdrawAsset}) to ${network}`,
-      referencePrefix: "wd",
-    });
+  }
+
+  // Everything checks out — link the wallet now (first withdrawal only).
+  let linkedNow = false;
+  if (needsLink) {
+    try {
+      await prisma.user.update({ where: { id: user.id }, data: { walletAddress } });
+      linkedNow = true;
+    } catch {
+      // Unique constraint hit — this wallet is already linked to a
+      // different account.
+      return NextResponse.json({ error: "WALLET_ALREADY_LINKED" }, { status: 400 });
+    }
+  }
+
+  try {
+    if (withdrawSource === "staking_profit") {
+      await debitWithCheck({
+        userId: user.id,
+        type: LedgerType.STAKE_PROFIT_RELEASE,
+        amount: creditsNeeded,
+        description: `Staked profit withdrawal: $${usdtAmount} (${withdrawAsset}) to ${network}`,
+        referencePrefix: "wd",
+      });
+    } else {
+      await debitWithCheck({
+        userId: user.id,
+        type: LedgerType.REDEMPTION,
+        amount: creditsNeeded,
+        description: `Withdrawal request: $${usdtAmount} (${withdrawAsset}) to ${network}`,
+        referencePrefix: "wd",
+      });
+    }
+  } catch (e: any) {
+    // The debit didn't happen, so undo the wallet link made above.
+    if (linkedNow) {
+      await prisma.user.update({ where: { id: user.id }, data: { walletAddress: null } }).catch(() => {});
+    }
+    if (e?.message === "INSUFFICIENT_BALANCE") {
+      return NextResponse.json({ error: "EXCEEDS_WITHDRAWABLE_BALANCE" }, { status: 400 });
+    }
+    throw e;
   }
 
   const withdrawal = await prisma.withdrawalRequest.create({

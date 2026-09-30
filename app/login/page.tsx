@@ -1,6 +1,7 @@
 "use client";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import LoadingRadar from "@/components/LoadingRadar";
 
@@ -16,6 +17,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const verifyStatus = searchParams.get("verify");
+  const resetStatus = searchParams.get("reset");
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +76,10 @@ function LoginForm() {
     <div className="pt-8">
       <h1 className="scoreboard text-3xl mb-6">LOG IN</h1>
 
+      {resetStatus === "success" && (
+        <p className="text-sm mb-4 text-brand">Password updated. Log in with your new password.</p>
+      )}
+
       {verifyMsg && (
         <p className={`text-sm mb-4 ${verifyMsg.tone === "brand" ? "text-brand" : "text-loss"}`}>
           {verifyMsg.text}
@@ -105,6 +111,11 @@ function LoginForm() {
             required
           />
         </span>
+        <div className="text-xs text-right -mt-2">
+          <Link href="/forgot-password" className="text-brand underline">
+            Forgot password?
+          </Link>
+        </div>
         {error && <p className="text-loss text-sm">{error}</p>}
         {needsVerification && (
           <div className="text-xs">

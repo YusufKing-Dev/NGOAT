@@ -92,6 +92,13 @@ enum StakeDuration {
   ONE_YEAR
 }
 
+// One-time email-link tokens. Only a SHA-256 hash of the token is ever
+// stored, so a leaked database can't be used to reset anyone's password.
+enum AuthTokenType {
+  PASSWORD_RESET   // "forgot password" link
+  PASSWORD_CHANGE  // confirms a logged-in user's change-password request
+}
+
 enum StakeStatus {
   ACTIVE
   MATURED
@@ -165,6 +172,18 @@ model User {
   // wallet — this is the core anti-multi-accounting control.
   walletAddress String? @unique
 
+  // Bumped every time the password changes. Login sessions remember the
+  // value they were issued under, so changing the password signs the
+  // account out everywhere else (see lib/auth.ts jwt callback).
+  passwordChangedAt DateTime?
+
+  // Set after a forgot-password reset: withdrawals are blocked until
+  // this time, so someone who hijacks an inbox can't reset the password
+  // and cash out straight away.
+  withdrawalsHeldUntil DateTime?
+
+  authTokens AuthToken[]
+
   ledgerEntries   LedgerEntry[]
   deposits        DepositRequest[]
   withdrawals     WithdrawalRequest[]
@@ -177,6 +196,22 @@ model User {
   // server-side (never trust a client's claim of "this is a free
   // spin") — consumed one at a time by playSpin() in lib/games.ts.
   freeSpinsAvailable Int @default(0)
+}
+
+model AuthToken {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            AuthTokenType
+  tokenHash       String        @unique
+  // Only for PASSWORD_CHANGE: the bcrypt hash of the new password,
+  // applied only once the emailed link is confirmed.
+  newPasswordHash String?
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([userId, type, createdAt])
 }
 
 // Source of truth for balances. Never store/edit a raw balance column —

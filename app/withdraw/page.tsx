@@ -2,8 +2,11 @@
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { bytesToBase64, withdrawalLinkMessage } from "@/lib/walletMessages";
 
 type MeSummary = {
+  id: string;
+  withdrawalsHeldUntil: string | null;
   walletAddress: string | null;
   realWithdrawableBalance: number;
   staking: { profitAvailable: number };
@@ -22,7 +25,7 @@ const ASSETS: { id: Asset; label: string }[] = [
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 export default function WithdrawPage() {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey, signMessage } = useWallet();
   const [usdtAmount, setUsdtAmount] = useState(10);
   const [asset, setAsset] = useState<Asset>("USDT");
   const [source, setSource] = useState<"real" | "staking_profit">("real");
@@ -58,6 +61,8 @@ export default function WithdrawPage() {
   useEffect(() => {
     if (connected && publicKey && !linkedWallet) {
       setWalletInput(publicKey.toBase58());
+    } else if (!connected && !linkedWallet) {
+      setWalletInput("");
     }
   }, [connected, publicKey, linkedWallet]);
 
@@ -74,17 +79,46 @@ export default function WithdrawPage() {
     unlockMet &&
     walletLooksValid &&
     !walletMismatch &&
-    (!!linkedWallet || confirmedRisk);
+    (!!linkedWallet ||
+      (confirmedRisk && connected && !!publicKey && walletAddress === publicKey.toBase58()));
+
+  const heldUntil = me?.withdrawalsHeldUntil ? new Date(me.withdrawalsHeldUntil) : null;
+  const onHold = !!heldUntil && heldUntil > new Date();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!walletAddress) return;
     setLoading(true);
     setMessage(null);
+
+    // First withdrawal: the wallet has to prove it's yours by signing a
+    // short message (free, moves no funds). Later withdrawals skip this.
+    let proof: { walletSignature?: string; signedAt?: number } = {};
+    if (!linkedWallet) {
+      if (!connected || !publicKey || !signMessage || !me?.id) {
+        setMessage(
+          "Connect a wallet that can sign messages (like Phantom or Solflare) to link your withdrawal wallet."
+        );
+        setLoading(false);
+        return;
+      }
+      try {
+        const signedAt = Date.now();
+        const signature = await signMessage(
+          new TextEncoder().encode(withdrawalLinkMessage(me.id, publicKey.toBase58(), signedAt))
+        );
+        proof = { walletSignature: bytesToBase64(signature), signedAt };
+      } catch {
+        setMessage("Signature cancelled — your wallet must sign to prove it's yours.");
+        setLoading(false);
+        return;
+      }
+    }
+
     const res = await fetch("/api/withdrawals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usdtAmount, asset, network: "Solana", walletAddress, source }),
+      body: JSON.stringify({ usdtAmount, asset, network: "Solana", walletAddress, source, ...proof }),
     });
     const data = await res.json();
     setLoading(false);
@@ -105,6 +139,12 @@ export default function WithdrawPage() {
         setMessage(data.message ?? "Deposit requirement not met yet.");
       } else if (data.error === "WALLET_ALREADY_LINKED") {
         setMessage("This wallet is already linked to a different account.");
+      } else if (data.error === "WITHDRAWALS_HELD") {
+        setMessage("Withdrawals are paused for a short time after a password reset. Please try again later.");
+      } else if (data.error === "WALLET_PROOF_REQUIRED" || data.error === "WALLET_PROOF_INVALID") {
+        setMessage("We couldn't verify that this wallet is yours. Reconnect it and sign the message again.");
+      } else if (data.error === "WALLET_PROOF_EXPIRED") {
+        setMessage("That signature expired. Please submit again and sign once more.");
       } else if (data.error === "WALLET_MISMATCH") {
         setMessage(`You must withdraw using your linked wallet: ${data.linkedWallet}`);
       } else {
@@ -135,6 +175,15 @@ export default function WithdrawPage() {
         <p className="text-xs text-muted mb-3">
           Minimum $5, maximum $100 per day (combined across both balances and all assets below).
         </p>
+
+        {onHold && heldUntil && (
+          <div className="bg-surface2 rounded-lg px-3 py-2 mb-3">
+            <p className="text-xs text-loss">
+              Withdrawals are paused after your password reset until {heldUntil.toLocaleString()}. This
+              protects your account.
+            </p>
+          </div>
+        )}
 
         {me && !unlockMet && (
           <div className="bg-surface2 rounded-lg px-3 py-2 mb-3">
@@ -204,8 +253,8 @@ export default function WithdrawPage() {
         <WalletMultiButton style={{ width: "100%", justifyContent: "center" }} />
         <p className="text-xs text-muted mt-2 mb-1">
           {linkedWallet
-            ? "Connecting fills the field automatically, or paste it in below."
-            : "Optional — connecting just autofills the address below so you can't mistype it. You can also paste it in directly."}
+            ? "This is the wallet your account is permanently linked to."
+            : "Connect the wallet you want to be paid to. It will be asked to sign a free message to prove it's yours — pasting an address is no longer accepted."}
         </p>
 
         {linkedWallet ? (
@@ -224,10 +273,10 @@ export default function WithdrawPage() {
         ) : (
           <input
             type="text"
-            placeholder="Paste your Solana wallet address"
-            className="input mt-1"
+            placeholder="Connect your wallet above"
+            className="input mt-1 opacity-70"
             value={walletInput}
-            onChange={(e) => setWalletInput(e.target.value.trim())}
+            readOnly
           />
         )}
 
@@ -281,7 +330,7 @@ export default function WithdrawPage() {
           {message && <p className="text-sm text-brand">{message}</p>}
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={!canSubmit || onHold}
             className="btn-primary w-full disabled:opacity-40"
           >
             {loading ? "Submitting…" : "SUBMIT WITHDRAWAL REQUEST"}
