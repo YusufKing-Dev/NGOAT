@@ -1,14 +1,9 @@
 import Link from "next/link";
 import WhitepaperModal from "@/components/WhitepaperModal";
 import CopyButton from "@/components/CopyButton";
-import { prisma } from "@/lib/prisma";
 
 const LOGO_URL =
   "https://res.cloudinary.com/drdrwbdkp/image/upload/v1789847856/IMG_20260919_205057_929_hr6nsh.jpg";
-
-// Reads live config (signup bonus) — must never be statically
-// pre-rendered at build time with no live DB connection available.
-export const dynamic = "force-dynamic";
 
 const TOKENOMICS = [
   { label: "Total Supply", value: "1,000,000,000 $NGOAT" },
@@ -17,7 +12,8 @@ const TOKENOMICS = [
 ];
 
 const CONTRACT_ADDRESS = "8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump";
-const BUY_URL = "https://pump.fun/coin/8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump";
+const BUY_URL =
+  "https://pump.fun/coin/8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump";
 
 const ALLOCATION = [
   { label: "Liquidity", pct: "70%", amount: "700,000,000" },
@@ -104,9 +100,7 @@ const ROADMAP = [
   },
 ];
 
-export default async function HomePage() {
-  const config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-
+export default function HomePage() {
   return (
     <div className="pt-8 space-y-10">
       {/* HERO */}
@@ -117,14 +111,17 @@ export default async function HomePage() {
           alt="NGOAT logo"
           className="w-28 h-28 rounded-full mx-auto mb-4 border-2 border-brand object-cover"
         />
+
         <p className="text-brand text-sm font-semibold tracking-widest uppercase mb-2">
           $NGOAT on Solana
         </p>
+
         <h1 className="scoreboard text-3xl leading-tight mb-3">
           NGOATCOIN
           <br />
           THE REAL GOAT 🐐
         </h1>
+
         <p className="text-blue-400 mb-6">
           NGOATCOIN ($NGOAT) is the ecosystem token powering the NGOAT community — a
           community-driven meme ecosystem built around football, prediction, gaming, rewards,
@@ -134,11 +131,14 @@ export default async function HomePage() {
           $NGOAT connects its community to the existing NgoatCredit ($NGC) platform, where users
           can play, predict, earn and participate in different ecosystem use cases.
         </p>
+
         <div className="flex flex-col gap-3">
           <Link href="/predictions" className="btn-primary">
             Join $NGOAT
           </Link>
+
           <WhitepaperModal />
+
           <a
             href={BUY_URL}
             target="_blank"
@@ -152,40 +152,56 @@ export default async function HomePage() {
 
       {/* ABOUT */}
       <section className="card text-center">
-        <h2 className="text-sm text-muted uppercase tracking-wide mb-3">About NGOAT</h2>
+        <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
+          About NGOAT
+        </h2>
+
         <div className="text-sm leading-relaxed space-y-3">
           <p>
-            NGOAT is a community-driven meme coin built around one simple idea: everyone knows
-            the GOAT, but Africa has its own GOAT — NGOAT.
+            NGOAT is a community-driven meme coin built around one simple idea:
+            everyone knows the GOAT, but Africa has its own GOAT — NGOAT.
           </p>
+
           <p>
-            Born from African internet culture, football passion, memes and crypto, NGOAT is
-            designed to be more than just another meme token. The project aims to build an
-            entertaining community while gradually introducing real utility around the NGOAT
-            ecosystem.
+            Born from African internet culture, football passion, memes and crypto,
+            NGOAT is designed to be more than just another meme token. The project
+            aims to build an entertaining community while gradually introducing
+            real utility around the NGOAT ecosystem.
           </p>
+
           <p>
-            The first layer is the meme culture — a recognizable mascot, viral content, community
-            competitions and social engagement. The second layer is utility: a football
-            prediction platform where registered users can acquire NGOAT credits and use them to
-            participate in football predictions, redeeming rewards through the platform.
+            The first layer is the meme culture — a recognizable mascot, viral
+            content, community competitions and social engagement. The second layer
+            is utility: a football prediction platform where registered users can
+            acquire NGOAT credits and use them to participate in football
+            predictions, redeeming rewards through the platform.
           </p>
+
           <p>
-            NGOAT's long-term vision is to become a recognizable African crypto brand where meme
-            culture meets entertainment, football and community-driven utility.
+            NGOAT's long-term vision is to become a recognizable African crypto
+            brand where meme culture meets entertainment, football and
+            community-driven utility.
           </p>
+
           <p className="text-brand font-semibold">
-            NGOAT isn't here to be just another coin. NGOAT is here to become the REAL GOAT.
+            NGOAT isn't here to be just another coin. NGOAT is here to become the
+            REAL GOAT.
           </p>
         </div>
       </section>
 
       {/* TOKENOMICS */}
       <section className="card">
-        <h2 className="text-sm text-brand uppercase tracking-wide mb-3">Tokenomics</h2>
+        <h2 className="text-sm text-brand uppercase tracking-wide mb-3">
+          Tokenomics
+        </h2>
+
         <div className="space-y-2 text-sm mb-4">
           {TOKENOMICS.map((row) => (
-            <div key={row.label} className="flex justify-between border-b border-white/5 pb-2">
+            <div
+              key={row.label}
+              className="flex justify-between border-b border-white/5 pb-2"
+            >
               <span className="text-muted">{row.label}</span>
               <span>{row.value}</span>
             </div>
@@ -194,13 +210,22 @@ export default async function HomePage() {
 
         <div className="rounded-xl border border-white/10 bg-white/5 p-3 mb-4">
           <div className="flex items-center justify-between gap-3 mb-2">
-            <p className="text-xs text-muted uppercase tracking-wide">Contract Address</p>
+            <p className="text-xs text-muted uppercase tracking-wide">
+              Contract Address
+            </p>
+
             <CopyButton text={CONTRACT_ADDRESS} />
           </div>
-          <p className="font-mono text-xs break-all select-all text-ink">{CONTRACT_ADDRESS}</p>
+
+          <p className="font-mono text-xs break-all select-all text-ink">
+            {CONTRACT_ADDRESS}
+          </p>
         </div>
 
-        <h3 className="text-xs text-brand uppercase tracking-wide mb-2">Allocation</h3>
+        <h3 className="text-xs text-brand uppercase tracking-wide mb-2">
+          Allocation
+        </h3>
+
         <div className="space-y-2 text-sm">
           {ALLOCATION.map((row) => (
             <div key={row.label} className="flex justify-between">
@@ -214,31 +239,71 @@ export default async function HomePage() {
       {/* USE CASES */}
       <section>
         <h2 className="scoreboard text-2xl mb-4">USE CASES</h2>
+
         <div className="space-y-3">
-          <Link href="/predictions" className="card block hover:opacity-90 transition">
-            <p className="text-xs text-brand uppercase tracking-wide mb-1">Live now</p>
-            <h3 className="font-semibold mb-1 text-ink">🐐⚽ Football Predictions</h3>
+          <Link
+            href="/predictions"
+            className="card block hover:opacity-90 transition"
+          >
+            <p className="text-xs text-brand uppercase tracking-wide mb-1">
+              Live now
+            </p>
+
+            <h3 className="font-semibold mb-1 text-ink">
+              🐐⚽ Football Predictions
+            </h3>
+
             <p className="text-sm text-muted">
               Predict match outcomes, compete on the leaderboard, redeem winnings.
             </p>
           </Link>
-          <Link href="/stake" className="card block hover:opacity-90 transition">
-            <p className="text-xs text-brand uppercase tracking-wide mb-1">Live now</p>
-            <h3 className="font-semibold mb-1 text-ink">💰 Stake to Earn</h3>
+
+          <Link
+            href="/stake"
+            className="card block hover:opacity-90 transition"
+          >
+            <p className="text-xs text-brand uppercase tracking-wide mb-1">
+              Live now
+            </p>
+
+            <h3 className="font-semibold mb-1 text-ink">
+              💰 Stake to Earn
+            </h3>
+
             <p className="text-sm text-muted">
               Lock NGC for a fixed term and grow your balance automatically over time.
             </p>
           </Link>
-          <Link href="/spinthewheel" className="card block hover:opacity-90 transition">
-            <p className="text-xs text-brand uppercase tracking-wide mb-1">Live now</p>
-            <h3 className="font-semibold mb-1 text-ink">🎡 Spin the Wheel</h3>
+
+          <Link
+            href="/spinthewheel"
+            className="card block hover:opacity-90 transition"
+          >
+            <p className="text-xs text-brand uppercase tracking-wide mb-1">
+              Live now
+            </p>
+
+            <h3 className="font-semibold mb-1 text-ink">
+              🎡 Spin the Wheel
+            </h3>
+
             <p className="text-sm text-muted">
               Spin for a shot at a bigger payout — land the right segment and win big.
             </p>
           </Link>
-          <Link href="/numberpick" className="card block hover:opacity-90 transition">
-            <p className="text-xs text-brand uppercase tracking-wide mb-1">Live now</p>
-            <h3 className="font-semibold mb-1 text-ink">🎯 Weekly Draw</h3>
+
+          <Link
+            href="/numberpick"
+            className="card block hover:opacity-90 transition"
+          >
+            <p className="text-xs text-brand uppercase tracking-wide mb-1">
+              Live now
+            </p>
+
+            <h3 className="font-semibold mb-1 text-ink">
+              🎯 Weekly Draw
+            </h3>
+
             <p className="text-sm text-muted">
               Pick your numbers once a week for a shot at the jackpot.
             </p>
@@ -248,13 +313,17 @@ export default async function HomePage() {
 
       {/* ROADMAP */}
       <section className="card">
-        <h2 className="text-sm text-muted uppercase tracking-wide mb-4">Roadmap</h2>
+        <h2 className="text-sm text-muted uppercase tracking-wide mb-4">
+          Roadmap
+        </h2>
+
         <div className="space-y-5">
           {ROADMAP.map((r) => (
             <div key={r.phase}>
               <p className="font-semibold text-brand text-sm">
                 {r.phase} — {r.title}
               </p>
+
               <ul className="text-sm text-muted mt-1 space-y-1 list-disc list-outside pl-5">
                 {r.items.map((item) => (
                   <li key={item}>{item}</li>
