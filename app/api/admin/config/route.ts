@@ -15,6 +15,7 @@ const NUMERIC_FIELDS = [
   "bonusWageringMultiplier",
   "minBetCredits",
   "rewardMultiplier",
+  "oddsMargin",
   "referralBonusCredits",
   "minSlipLegs",
   "stakingMinCredits",

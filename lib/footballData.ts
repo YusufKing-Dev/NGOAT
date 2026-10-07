@@ -53,3 +53,8 @@ export async function fetchScheduledFixtures(
 export async function fetchFixtureById(externalId: string) {
   return fdFetch(`/matches/${externalId}`);
 }
+
+/** League table for a competition (used to rate team strength for odds). */
+export async function fetchStandings(competitionCode: string) {
+  return fdFetch(`/competitions/${competitionCode}/standings`);
+}

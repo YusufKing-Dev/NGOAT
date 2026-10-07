@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { addLedgerEntry } from "./ledger";
 import { PredictionStatus } from "@prisma/client";
+import { gradeSelection, slipPayout, type MarketKey } from "./markets";
 
 /**
  * Re-evaluates a slip after one of its legs changes. Called after every
@@ -39,6 +40,43 @@ export async function checkSlipCompletion(slipId: string) {
   if (slip.legs.some((l) => l.status === "PENDING")) return;
 
   const wonLegs = slip.legs.filter((l) => l.status === "WON").length;
+
+  // ---- Odds-based slips (Single / Multiple) ----
+  // payout = stake x product of the odds of the winning legs. VOID legs
+  // (cancelled matches) are dropped, i.e. count as odds 1.00. A slip
+  // where every leg was voided gets its stake back.
+  if (slip.oddsBased) {
+    if (wonLegs === 0) {
+      await addLedgerEntry({
+        userId: slip.userId,
+        type: "REFUND",
+        amount: slip.stake,
+        description: "Refund: all matches in slip cancelled",
+        referencePrefix: "rfd",
+      });
+      await prisma.predictionSlip.update({ where: { id: slip.id }, data: { status: "VOID" } });
+      return;
+    }
+    const winningOdds = slip.legs
+      .filter((l) => l.status === "WON")
+      .map((l) => l.odds ?? 1);
+    const reward = slipPayout(slip.stake, winningOdds);
+    await addLedgerEntry({
+      userId: slip.userId,
+      type: "PREDICTION_REWARD",
+      amount: reward,
+      description:
+        slip.legs.length === 1 ? "Prediction win" : `Multiple win (${wonLegs} picks)`,
+      referencePrefix: "rwd",
+    });
+    await prisma.predictionSlip.update({
+      where: { id: slip.id },
+      data: { status: "WON", reward },
+    });
+    return;
+  }
+
+  // ---- Legacy slips (placed before odds existed): flat bonus formula ----
 
   if (wonLegs === 0) {
     // Every leg voided — nothing left to grade. Refund the stake.
@@ -102,10 +140,19 @@ export async function settleMatch(
   const affectedSlipIds = new Set<string>();
 
   for (const leg of match.predictions) {
-    const won = leg.pick === outcome;
+    // Old legs only have `pick` (1X2); new legs carry market + selection.
+    const result = gradeSelection(
+      {
+        market: (leg.market as MarketKey) ?? "1X2",
+        selection: leg.selection ?? leg.pick ?? "",
+        line: leg.line,
+      },
+      finalHomeScore,
+      finalAwayScore
+    );
     await prisma.prediction.update({
       where: { id: leg.id },
-      data: { status: won ? PredictionStatus.WON : PredictionStatus.LOST },
+      data: { status: result === "WON" ? PredictionStatus.WON : PredictionStatus.LOST },
     });
     affectedSlipIds.add(leg.slipId);
   }

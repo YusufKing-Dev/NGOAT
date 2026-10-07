@@ -33,7 +33,20 @@ export async function GET(req: NextRequest) {
     for (const f of fixtures) {
       const externalId = String(f.id);
       const existing = await prisma.match.findUnique({ where: { externalId } });
-      if (existing) continue;
+      if (existing) {
+        // Backfill the team ids odds need onto matches imported earlier.
+        if (!existing.competitionCode && f.homeTeam?.id != null && f.awayTeam?.id != null) {
+          await prisma.match.update({
+            where: { id: existing.id },
+            data: {
+              competitionCode: code,
+              homeTeamExtId: f.homeTeam.id,
+              awayTeamExtId: f.awayTeam.id,
+            },
+          });
+        }
+        continue;
+      }
 
       const kickoff = new Date(f.utcDate);
       const predictionDeadline = new Date(kickoff.getTime() - 5 * 60 * 1000);
@@ -44,6 +57,9 @@ export async function GET(req: NextRequest) {
           homeTeam: f.homeTeam?.name ?? "Home",
           awayTeam: f.awayTeam?.name ?? "Away",
           competition: f.competition?.name ?? code,
+          competitionCode: code,
+          homeTeamExtId: f.homeTeam?.id ?? null,
+          awayTeamExtId: f.awayTeam?.id ?? null,
           kickoff,
           predictionDeadline,
           entryCredits: entry,

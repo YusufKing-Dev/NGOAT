@@ -287,6 +287,19 @@ model Match {
   externalId  String? @unique
   autoSettled Boolean @default(false)
 
+  // Used to look the two teams up in the league table for auto odds.
+  competitionCode String?
+  homeTeamExtId   Int?
+  awayTeamExtId   Int?
+
+  // Published odds for every market (see lib/markets.ts MatchOdds).
+  // null = no odds yet, so the match is not shown for prediction.
+  // oddsManual = true means an admin set them by hand; auto refresh
+  // then leaves this match alone.
+  odds          Json?
+  oddsManual    Boolean   @default(false)
+  oddsUpdatedAt DateTime?
+
   predictions Prediction[]
 }
 
@@ -300,12 +313,20 @@ model Prediction {
   match     Match            @relation(fields: [matchId], references: [id])
   slipId    String
   slip      PredictionSlip   @relation(fields: [slipId], references: [id])
-  pick      PredictionPick
-  stake     Int              // informational, mirrors slip.stake
+  // Legacy 1X2 pick, kept for slips placed before markets existed.
+  pick      PredictionPick?
+  // Market pick: 1X2 | OU | DC (see lib/markets.ts). Old rows default to 1X2
+  // and fall back to `pick` when `selection` is null.
+  market    String           @default("1X2")
+  selection String?
+  line      Float?           // Over/Under line, e.g. 2.5
+  odds      Float?           // odds locked in at the moment of placing
+  stake     Int              // informational: this leg's share / single stake
   status    PredictionStatus @default(PENDING)
   createdAt DateTime         @default(now())
 
-  @@unique([userId, matchId]) // can't pick the same match twice, ever
+  @@index([userId, matchId])
+  @@index([matchId])
 }
 
 // An accumulator slip: minimum 3 matches, one stake for the whole slip,
@@ -321,6 +342,11 @@ model PredictionSlip {
   status    PredictionStatus @default(PENDING)
   reward    Int? // set once settled, for the record
   createdAt DateTime         @default(now())
+
+  // true = odds-based slip (payout = stake x product of winning odds).
+  // false = old flat-bonus slips placed before odds existed.
+  oddsBased Boolean @default(false)
+  totalOdds Float? // product of the leg odds at placement (display only)
 
   legs Prediction[]
 }
@@ -361,12 +387,14 @@ model PlatformConfig {
 
   signupBonusCredits      Int   @default(20000)
   bonusWageringMultiplier Int   @default(3)
-  minBetCredits           Int   @default(5000)
+  minBetCredits           Int   @default(10000)
   // Despite the name (kept as-is to avoid a migration), this is an
   // ADDITIVE per-leg bonus rate, not an exponential multiplier — see
   // lib/settlement.ts. 0.8 = each correctly predicted leg adds +80%
   // of the stake to the payout (linear growth, not compounding).
   rewardMultiplier     Float @default(0.8)
+  // Margin the platform keeps on auto-generated odds (0.07 = 7%).
+  oddsMargin           Float @default(0.07)
   referralBonusCredits Int   @default(2000)
 
   // Accumulator predictions: every slip must have at least this many legs.

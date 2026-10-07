@@ -20,7 +20,11 @@ const getPlatformConfig = unstable_cache(
 export default async function PredictionsPage() {
   const config = await getPlatformConfig();
 
-  const minBet = config?.minBetCredits ?? 5000;
+<<<<<<< HEAD
+  const minBet = config?.minBetCredits ?? 10000;
+=======
+  const minBet = config?.minBetCredits ?? 10000;
+>>>>>>> a2fd94b (Add auto odds, 1X2/Over-Under/Double Chance markets, Single and Multiple betslip, 10k min stake)
   const rate = config?.usdtToCreditsRate ?? 2000;
 
   return (

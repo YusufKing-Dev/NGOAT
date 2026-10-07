@@ -1,8 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
+import { selectionLabel, marketTitle } from "@/lib/markets";
 
 type Leg = {
-  pick: string;
+  pick: string | null;
+  market: string;
+  selection: string | null;
+  line: number | null;
+  odds: number | null;
   status: string;
   match: { homeTeam: string; awayTeam: string; status: string; kickoff: string };
 };
@@ -12,6 +17,8 @@ type Slip = {
   stake: number;
   status: string;
   reward: number | null;
+  oddsBased: boolean;
+  totalOdds: number | null;
   createdAt: string;
   legs: Leg[];
 };
@@ -40,14 +47,13 @@ export default function MyPredictionsPage() {
     <div className="pt-6 space-y-4">
       <h1 className="scoreboard text-3xl">MY PREDICTIONS</h1>
       <p className="text-xs text-muted">
-        Every accumulator you've placed and how it's going. All picks in a slip must win for it
-        to pay out.
+        Every prediction you've placed and how it's going. Singles pay on their own; on a
+        multiple, all picks must win for it to pay out.
       </p>
 
       {slips.length === 0 && (
         <p className="text-muted text-sm">
-          You haven't placed any predictions yet — head to Prediction to build your first
-          accumulator.
+          You haven't placed any predictions yet — head to Prediction to place your first one.
         </p>
       )}
 
@@ -55,8 +61,10 @@ export default function MyPredictionsPage() {
         <div key={slip.id} className="card">
           <div className="flex justify-between items-center mb-2">
             <p className="text-xs text-muted">
-              {new Date(slip.createdAt).toLocaleDateString()} · Staked{" "}
-              {slip.stake.toLocaleString()} NGC
+              {new Date(slip.createdAt).toLocaleDateString()} ·{" "}
+              {slip.oddsBased ? (slip.legs.length > 1 ? "Multiple" : "Single") : "Accumulator"} ·
+              Staked {slip.stake.toLocaleString()} NGC
+              {slip.oddsBased && slip.totalOdds ? <> · Odds {slip.totalOdds.toFixed(2)}</> : null}
             </p>
             <span className={`text-sm font-semibold ${statusColor(slip.status)}`}>
               {slip.status}
@@ -79,7 +87,15 @@ export default function MyPredictionsPage() {
                     {leg.match.awayTeam}
                   </p>
                   <p className="text-xs text-muted">
-                    Picked: {leg.pick} · {new Date(leg.match.kickoff).toLocaleDateString()}
+                    {leg.selection
+                      ? `${marketTitle(leg.market)}: ${selectionLabel(
+                          { market: leg.market, selection: leg.selection, line: leg.line },
+                          leg.match.homeTeam,
+                          leg.match.awayTeam
+                        )}`
+                      : `Picked: ${leg.pick}`}
+                    {leg.odds ? ` @ ${leg.odds.toFixed(2)}` : ""} ·{" "}
+                    {new Date(leg.match.kickoff).toLocaleDateString()}
                   </p>
                 </div>
                 <span className={`text-xs font-semibold ${statusColor(leg.status)}`}>

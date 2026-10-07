@@ -2,6 +2,7 @@ name: NGOAT scheduled jobs
 
 # Replaces the two Vercel crons in vercel.json (they don't run on Netlify):
 #   /api/cron/import-fixtures      (pulls fixtures from football-data.org)
+#   /api/cron/refresh-odds         (re-prices open matches from the league tables)
 #   /api/cron/settle-number-pick   (settles due Number Pick draws)
 
 on:
@@ -17,6 +18,18 @@ jobs:
         run: |
           curl -sf -X GET "${{ secrets.NGOAT_URL }}/api/cron/import-fixtures" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Refresh football odds
+        # One standings request per competition, spaced out to stay inside
+        # football-data.org's free-tier limit of 10 requests per minute
+        # (the import step above already used up to 6 of them).
+        run: |
+          sleep 60
+          for c in PL PD BL1 SA FL1 CL; do
+            curl -sf -X GET "${{ secrets.NGOAT_URL }}/api/cron/refresh-odds?comp=$c" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" || echo "odds refresh failed for $c"
+            echo
+            sleep 8
+          done
       - name: Settle number pick
         run: |
           curl -sf -X GET "${{ secrets.NGOAT_URL }}/api/cron/settle-number-pick" \

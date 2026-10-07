@@ -45,6 +45,8 @@ type Match = {
   entryCredits: number;
   rewardCredits: number;
   kickoff: string;
+  odds?: any;
+  oddsManual?: boolean;
 };
 
 type Stake = {
@@ -69,7 +71,11 @@ type PredictionSlip = {
   user: { username: string; email: string };
   legs: {
     id: string;
-    pick: string;
+    pick: string | null;
+    market?: string;
+    selection?: string | null;
+    line?: number | null;
+    odds?: number | null;
     status: string;
     match: { homeTeam: string; awayTeam: string; status: string };
   }[];
@@ -110,6 +116,7 @@ type PlatformConfig = {
   bonusWageringMultiplier: number;
   minBetCredits: number;
   rewardMultiplier: number;
+  oddsMargin: number;
   referralBonusCredits: number;
   minSlipLegs: number;
   stakingMinCredits: number;
@@ -384,6 +391,86 @@ export default function AdminPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ finalHomeScore: Number(home), finalAwayScore: Number(away) }),
     });
+    loadAll();
+  }
+
+  // ---- Odds ----
+  const [oddsEditId, setOddsEditId] = useState<string | null>(null);
+  const [oddsForm, setOddsForm] = useState<Record<string, string>>({});
+  const [oddsMsg, setOddsMsg] = useState<string | null>(null);
+
+  const ODDS_FIELDS: { key: string; label: string }[] = [
+    { key: "x12.home", label: "Home win" },
+    { key: "x12.draw", label: "Draw" },
+    { key: "x12.away", label: "Away win" },
+    ...[0.5, 1.5, 2.5, 3.5, 4.5, 5.5].flatMap((l) => [
+      { key: `ou.${l}.over`, label: `Over ${l}` },
+      { key: `ou.${l}.under`, label: `Under ${l}` },
+    ]),
+    { key: "dc.homeDraw", label: "Home or Draw (1X)" },
+    { key: "dc.homeAway", label: "Home or Away (12)" },
+    { key: "dc.drawAway", label: "Draw or Away (X2)" },
+  ];
+
+  function readOdd(odds: any, key: string): string {
+    const parts = key.split(".");
+    let cur = odds;
+    if (parts[0] === "ou") {
+      cur = odds?.ou?.[parts[1]]?.[parts[2]];
+    } else {
+      cur = odds?.[parts[0]]?.[parts[1]];
+    }
+    return typeof cur === "number" ? String(cur) : "";
+  }
+
+  function openOddsEditor(m: Match) {
+    const f: Record<string, string> = {};
+    for (const { key } of ODDS_FIELDS) f[key] = readOdd(m.odds, key);
+    setOddsForm(f);
+    setOddsEditId(m.id);
+    setOddsMsg(null);
+  }
+
+  async function saveOdds(matchId: string) {
+    const odds: any = { x12: {}, ou: {}, dc: {} };
+    for (const { key } of ODDS_FIELDS) {
+      const raw = oddsForm[key];
+      if (!raw) continue;
+      const parts = key.split(".");
+      if (parts[0] === "ou") {
+        odds.ou[parts[1]] = { ...(odds.ou[parts[1]] ?? {}), [parts[2]]: Number(raw) };
+      } else {
+        odds[parts[0]][parts[1]] = Number(raw);
+      }
+    }
+    const res = await fetch("/api/admin/odds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set", matchId, odds }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setOddsMsg(res.ok ? "Odds saved (manual)." : `Couldn't save: ${d.error ?? res.status}`);
+    if (res.ok) {
+      setOddsEditId(null);
+      loadAll();
+    }
+  }
+
+  async function regenerateOdds(matchId: string) {
+    setOddsMsg("Regenerating…");
+    const res = await fetch("/api/admin/odds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "regenerate", matchId }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setOddsMsg(
+      res.ok
+        ? "Odds regenerated from the model."
+        : d.error === "NO_TEAM_DATA"
+        ? "No team data for this match — set the odds by hand."
+        : `Couldn't regenerate: ${d.error ?? res.status}`
+    );
     loadAll();
   }
 
@@ -913,7 +1000,11 @@ export default function AdminPage() {
                 <ul className="text-xs text-muted mt-1 space-y-0.5">
                   {s.legs.map((leg) => (
                     <li key={leg.id}>
-                      {leg.match.homeTeam} vs {leg.match.awayTeam} — pick {leg.pick} ({leg.status})
+                      {leg.match.homeTeam} vs {leg.match.awayTeam} —{" "}
+                      {leg.selection
+                        ? `${leg.market} ${leg.selection}${leg.line != null ? " " + leg.line : ""}`
+                        : `pick ${leg.pick}`}
+                      {leg.odds ? ` @ ${leg.odds.toFixed(2)}` : ""} ({leg.status})
                     </li>
                   ))}
                 </ul>
@@ -1240,6 +1331,8 @@ export default function AdminPage() {
                       ? "Number Pick — Good tier (2/3 match): payout = stake + stake x this"
                       : key === "numberPickSmallMultiplier"
                       ? "Number Pick — Small tier (1/3 match): payout = stake + stake x this"
+                      : key === "oddsMargin"
+                      ? "Football odds margin kept by the platform on auto-generated odds (0.07 = 7%). Takes effect on the next odds refresh"
                       : key === "numberPickRangeMax"
                       ? "Number Pick — pick 3 numbers from 1 to this"
                       : key === "spinCostNgc"
@@ -1329,16 +1422,69 @@ export default function AdminPage() {
             <h2 className="text-sm text-muted uppercase tracking-wide mb-3">
               Matches <span className="normal-case text-xs">({filteredMatches.length})</span>
             </h2>
+            {oddsMsg && <p className="text-xs text-brand mb-2">{oddsMsg}</p>}
             <div className="space-y-3">
               {filteredMatches.map((m) => (
                 <div key={m.id} className="border-b border-white/5 pb-2 text-sm">
                   <p>
                     {m.homeTeam} vs {m.awayTeam} · {m.status}
                   </p>
-                  {(m.status === "UPCOMING" || m.status === "LOCKED") && (
-                    <button onClick={() => settleMatch(m.id)} className="btn-secondary text-xs py-1 px-3 mt-1">
-                      Settle
-                    </button>
+                  {m.status === "UPCOMING" && (
+                    <p className="text-xs text-muted mt-0.5">
+                      {m.odds
+                        ? `1X2: ${m.odds.x12?.home ?? "—"} / ${m.odds.x12?.draw ?? "—"} / ${
+                            m.odds.x12?.away ?? "—"
+                          }${m.oddsManual ? " · set by hand" : " · auto"}`
+                        : "No odds yet — not visible to users"}
+                    </p>
+                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    {(m.status === "UPCOMING" || m.status === "LOCKED") && (
+                      <button onClick={() => settleMatch(m.id)} className="btn-secondary text-xs py-1 px-3 mt-1">
+                        Settle
+                      </button>
+                    )}
+                    {m.status === "UPCOMING" && (
+                      <>
+                        <button onClick={() => openOddsEditor(m)} className="btn-secondary text-xs py-1 px-3 mt-1">
+                          Edit odds
+                        </button>
+                        <button onClick={() => regenerateOdds(m.id)} className="btn-secondary text-xs py-1 px-3 mt-1">
+                          Auto odds
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {oddsEditId === m.id && (
+                    <div className="mt-2 bg-surface2 rounded-lg p-3">
+                      <p className="text-xs text-muted mb-2">
+                        Leave a box empty to not offer that option. Saving marks the match as hand-priced
+                        (auto refresh will leave it alone until you press Auto odds).
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {ODDS_FIELDS.map((f) => (
+                          <label key={f.key} className="text-xs text-muted">
+                            {f.label}
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="1.01"
+                              value={oddsForm[f.key] ?? ""}
+                              onChange={(e) => setOddsForm({ ...oddsForm, [f.key]: e.target.value })}
+                              className="input mt-0.5"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={() => saveOdds(m.id)} className="btn-primary text-xs py-1 px-3">
+                          Save odds
+                        </button>
+                        <button onClick={() => setOddsEditId(null)} className="btn-secondary text-xs py-1 px-3">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}
