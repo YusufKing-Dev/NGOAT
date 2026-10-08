@@ -42,8 +42,8 @@ export async function checkSlipCompletion(slipId: string) {
   const wonLegs = slip.legs.filter((l) => l.status === "WON").length;
 
   // ---- Odds-based slips (Single / Multiple) ----
-  // payout = stake x product of the odds of the winning legs. VOID legs
-  // (cancelled matches) are dropped, i.e. count as odds 1.00. A slip
+  // payout = stake x (1 + each winning leg's odds minus 1, added together).
+  // VOID legs (cancelled matches) are dropped and add nothing. A slip
   // where every leg was voided gets its stake back.
   if (slip.oddsBased) {
     if (wonLegs === 0) {

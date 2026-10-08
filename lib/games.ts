@@ -8,35 +8,39 @@ import { LedgerType, PredictionStatus } from "@prisma/client";
 // ---------------------------------------------------------------
 
 /**
- * Segment odds and payout, as agreed in the platform proposal. Payout
- * is the segment's NGC value PLUS the stake returned — e.g. landing
- * on 20000 pays 30000 total. The 0 segment pays nothing (full loss);
- * the Bonus segment pays nothing but grants one free respin.
+ * Segment odds and payout. Payout is the segment's NGC value PLUS the
+ * stake returned — e.g. at a 20,000 NGC stake, landing 10000 pays 30,000
+ * total. The 0 segment pays nothing (full loss); the Bonus segment pays
+ * nothing but grants one free respin (a free respin returns only the
+ * segment value, since no stake was paid for it).
  *
- * Odds sum to 100. Not admin-editable yet — these are the numbers
- * that were priced out for a sustainable house edge (~19%); exposing
- * them for editing without re-checking the payout math each time
- * risks quietly turning this into a losing game for the platform.
+ * Odds sum to 100. The "big" segments (10000 and up) together land
+ * 20% of the time — on average 1 spin in 5, purely random (no streak
+ * counter). With a 20,000 NGC stake this works out to roughly an 84-85%
+ * return to players, i.e. a ~15% house edge.
+ *
+ * Not admin-editable: change these only after re-checking the payout
+ * math, or the game can quietly turn into a loser for the platform.
  */
 const SPIN_SEGMENTS: { label: string; odds: number; value: number; isBonus?: boolean }[] = [
   { label: "0", odds: 35, value: 0 },
-  { label: "100", odds: 20, value: 100 },
-  { label: "50", odds: 15, value: 50 },
-  { label: "20", odds: 13, value: 20 },
-  { label: "5000", odds: 9, value: 5000 },
-  { label: "10000", odds: 4, value: 10000 },
-  { label: "20000", odds: 2.5, value: 20000 },
-  { label: "50000", odds: 0.5, value: 50000 },
+  { label: "200", odds: 18.4, value: 200 },
+  { label: "100", odds: 13.7, value: 100 },
+  { label: "40", odds: 11.9, value: 40 },
+  { label: "10000", odds: 11.3, value: 10000 },
+  { label: "20000", odds: 5, value: 20000 },
+  { label: "40000", odds: 3.1, value: 40000 },
+  { label: "100000", odds: 0.6, value: 100000 },
   { label: "BONUS", odds: 1, value: 0, isBonus: true },
 ];
 
 /** Picks a segment using crypto-secure randomness, weighted by `odds`. */
 function drawSpinSegment() {
-  // Work in tenths of a percent (1000 total) so the 0.5% segment is exact.
+  // Work in tenths of a percent (1000 total) so every segment is exact.
   const roll = randomInt(0, 1000);
   let cumulative = 0;
   for (const seg of SPIN_SEGMENTS) {
-    cumulative += seg.odds * 10;
+    cumulative += Math.round(seg.odds * 10);
     if (roll < cumulative) return seg;
   }
   return SPIN_SEGMENTS[0]; // unreachable in practice; safe fallback
@@ -53,7 +57,7 @@ export async function playSpin(userId: string) {
   if (!config?.gamesEnabled || !config?.spinEnabled) {
     throw new Error("GAME_DISABLED");
   }
-  const cost = config.spinCostNgc ?? 10000;
+  const cost = config.spinCostNgc ?? 20000;
 
   // Atomically check-and-consume a free spin if one's available, so
   // two concurrent requests can't both consume the same single credit.

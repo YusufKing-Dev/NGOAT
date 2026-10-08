@@ -470,7 +470,7 @@ model PlatformConfig {
 
   // Spin: fixed cost per spin. Segment odds/payouts live in
   // lib/games.ts (not admin-editable yet — see comment there).
-  spinCostNgc Int @default(10000)
+  spinCostNgc Int @default(20000)
 
   // Number Pick: one draw per week. Each person picks 3 distinct
   // numbers (order doesn't matter); multiple people CAN pick the same

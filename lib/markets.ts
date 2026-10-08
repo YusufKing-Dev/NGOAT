@@ -113,14 +113,23 @@ export function selectionLabel(
 }
 
 /**
- * Payout for a slip: stake x product of the odds of the winning legs.
- * VOID legs are dropped (treated as odds 1.00), same as Sportybet.
- * Capped at the largest value the ledger's 32-bit integer can hold — a
- * technical limit, not a business cap (2,000,000,000 NGC = 1M USDT).
+ * Combined odds factor for a slip: the stake once, plus the winnings of
+ * every pick ADDED together:  1 + (odds1 - 1) + (odds2 - 1) + ...
+ * For one pick this is just its odds. Because it adds instead of
+ * multiplying, it can never pay more than a normal multiplied accumulator.
+ */
+export function combinedOdds(odds: number[]): number {
+  return 1 + odds.reduce((acc, o) => acc + (o - 1), 0);
+}
+
+/**
+ * Payout for a slip: stake x combinedOdds of the winning picks.
+ * VOID picks are dropped (they add nothing). Capped at the largest value
+ * the ledger's 32-bit integer can hold — a technical limit, not a
+ * business cap (2,000,000,000 NGC = 1M USDT).
  */
 export const MAX_STORABLE_PAYOUT = 2_000_000_000;
 
 export function slipPayout(stake: number, winningOdds: number[]): number {
-  const product = winningOdds.reduce((acc, o) => acc * o, 1);
-  return Math.min(MAX_STORABLE_PAYOUT, Math.round(stake * product));
+  return Math.min(MAX_STORABLE_PAYOUT, Math.round(stake * combinedOdds(winningOdds)));
 }

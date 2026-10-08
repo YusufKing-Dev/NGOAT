@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { debitWithCheck, addLedgerEntry } from "@/lib/ledger";
 import { getCurrentUser } from "@/lib/auth";
-import { isValidSelection, oddsFor, type MatchOdds, type MarketKey } from "@/lib/markets";
+import { isValidSelection, oddsFor, combinedOdds, type MatchOdds, type MarketKey } from "@/lib/markets";
 
 const MAX_PICKS = 50;
 const MAX_STAKE = 2_000_000_000; // ledger amounts are 32-bit integers
@@ -23,9 +23,9 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
  *
  *  SINGLE   - every pick has its OWN stake and is its own independent
  *             slip. A losing pick doesn't affect the others.
- *  MULTIPLE - one stake for all picks (one pick per match). Odds are
- *             multiplied and EVERY pick must win, otherwise the stake is
- *             lost.
+ *  MULTIPLE - one stake for all picks (one pick per match). Payout is
+ *             stake x (1 + each pick's odds minus 1, added together) and
+ *             EVERY pick must win, otherwise the stake is lost.
  *
  * Odds are always read from the server's copy of the match and locked in
  * on the prediction. If they moved since the user loaded the page, we
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
         )
       );
     } else {
-      const total = r2(serverOdds.reduce((a, b) => a * b, 1));
+      const total = r2(combinedOdds(serverOdds));
       const slip = await prisma.predictionSlip.create({
         data: {
           userId: user.id,

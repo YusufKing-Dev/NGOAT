@@ -10,15 +10,15 @@ import { useRouter } from "next/navigation";
 // decides which label wins independent of wheel position; the client
 // just looks up whichever slice currently displays that label.
 const SEGMENTS: { label: string; line1: string; line2: string; color: string }[] = [
-  { label: "5000", line1: "+5,000", line2: "NGC", color: "#008751" },
-  { label: "20", line1: "+20", line2: "NGC", color: "#7C3AED" },
-  { label: "50000", line1: "+50,000", line2: "NGC", color: "#0F1A2E" },
+  { label: "10000", line1: "+10,000", line2: "NGC", color: "#008751" },
+  { label: "40", line1: "+40", line2: "NGC", color: "#7C3AED" },
+  { label: "100000", line1: "+100,000", line2: "NGC", color: "#0F1A2E" },
   { label: "0", line1: "0", line2: "NGC", color: "#008751" },
-  { label: "10000", line1: "+10,000", line2: "NGC", color: "#7C3AED" },
-  { label: "100", line1: "+100", line2: "NGC", color: "#0F1A2E" },
+  { label: "20000", line1: "+20,000", line2: "NGC", color: "#7C3AED" },
+  { label: "200", line1: "+200", line2: "NGC", color: "#0F1A2E" },
   { label: "BONUS", line1: "FREE", line2: "SPIN", color: "#008751" },
-  { label: "50", line1: "+50", line2: "NGC", color: "#7C3AED" },
-  { label: "20000", line1: "+20,000", line2: "NGC", color: "#0F1A2E" },
+  { label: "100", line1: "+100", line2: "NGC", color: "#7C3AED" },
+  { label: "40000", line1: "+40,000", line2: "NGC", color: "#0F1A2E" },
 ];
 
 const SEGMENT_ANGLE = 360 / SEGMENTS.length;
@@ -41,7 +41,7 @@ export default function SpinTheWheelPage() {
   const { status } = useSession();
   const router = useRouter();
   const [balance, setBalance] = useState(0);
-  const [spinCost, setSpinCost] = useState(1000);
+  const [spinCost, setSpinCost] = useState(20000);
   const [freeSpins, setFreeSpins] = useState(0);
   const [enabled, setEnabled] = useState(true);
   const [recent, setRecent] = useState<any[]>([]);
@@ -168,16 +168,16 @@ export default function SpinTheWheelPage() {
         )}
       </div>
 
-      <div className="relative" style={{ width: 300, height: 300 }}>
+      <div className="relative" style={{ width: "min(100%, 400px)", aspectRatio: "1 / 1" }}>
         {/* Fixed pointer */}
-        <div className="absolute left-1/2 -translate-x-1/2 z-10" style={{ top: -6 }}>
+        <div className="absolute left-1/2 -translate-x-1/2 z-10" style={{ top: -8 }}>
           <div
             style={{
               width: 0,
               height: 0,
-              borderLeft: "14px solid transparent",
-              borderRight: "14px solid transparent",
-              borderTop: "22px solid #00E676",
+              borderLeft: "16px solid transparent",
+              borderRight: "16px solid transparent",
+              borderTop: "26px solid #00E676",
               filter: "drop-shadow(0 0 6px #00E676)",
             }}
           />
@@ -189,7 +189,7 @@ export default function SpinTheWheelPage() {
           style={{ boxShadow: "0 0 24px 4px rgba(0,230,118,0.45)", border: "3px solid #00E676" }}
         />
 
-        <svg ref={wheelRef} width="300" height="300" viewBox="0 0 300 300" style={{ transform: "rotate(0deg)" }}>
+        <svg ref={wheelRef} width="100%" height="100%" viewBox="0 0 300 300" style={{ transform: "rotate(0deg)", display: "block" }}>
           {SEGMENTS.map((seg, i) => {
             const start = i * SEGMENT_ANGLE;
             const end = start + SEGMENT_ANGLE;
@@ -225,7 +225,7 @@ export default function SpinTheWheelPage() {
         {/* Center coin */}
         <div
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden"
-          style={{ width: 70, height: 70, border: "3px solid #FFD166", boxShadow: "0 0 14px rgba(255,209,102,0.7)" }}
+          style={{ width: "23%", aspectRatio: "1 / 1", border: "3px solid #FFD166", boxShadow: "0 0 14px rgba(255,209,102,0.7)" }}
         >
           <img src={LOGO_URL} alt="$NGOAT" className="w-full h-full object-cover" />
         </div>
@@ -251,7 +251,10 @@ export default function SpinTheWheelPage() {
                 <span>
                   {(() => {
                     const seg = SEGMENTS.find((s) => s.label === p.segmentLabel);
-                    return seg ? `${seg.line1} ${seg.line2}` : p.segmentLabel;
+                    if (seg) return `${seg.line1} ${seg.line2}`;
+                    // Spins from before the wheel was doubled use old labels.
+                    const n = Number(p.segmentLabel);
+                    return Number.isFinite(n) ? `+${n.toLocaleString()} NGC` : p.segmentLabel;
                   })()}
                 </span>
                 <span className={p.payout > 0 ? "text-brand" : ""}>

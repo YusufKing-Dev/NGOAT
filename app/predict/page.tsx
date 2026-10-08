@@ -6,6 +6,7 @@ import {
   selectionLabel,
   marketTitle,
   slipPayout,
+  combinedOdds,
   type MatchOdds,
   type MarketKey,
 } from "@/lib/markets";
@@ -166,7 +167,7 @@ export default function PredictPage() {
     return Object.keys(count).filter((id) => count[id] > 1);
   }, [slip]);
 
-  const totalOdds = slip.reduce((acc, p) => acc * p.odds, 1);
+  const totalOdds = combinedOdds(slip.map((p) => p.odds));
   const multiStakeNum = Number(multiStake || 0);
   const multiPayout = slipPayout(multiStakeNum, slip.map((p) => p.odds));
   const singleTotal = slip.reduce((acc, p) => acc + Number(singleStakes[p.key] || 0), 0);
@@ -460,7 +461,6 @@ export default function PredictPage() {
 
                 {slip.map((p) => {
                   const m = matchById.get(p.matchId);
-                  const stakeNum = Number(singleStakes[p.key] || 0);
                   const dup = mode === "MULTIPLE" && dupMatchIds.includes(p.matchId);
                   return (
                     <div key={p.key} className="bg-surface2 rounded-lg p-3">
@@ -499,11 +499,6 @@ export default function PredictPage() {
                             className="input mt-2"
                             placeholder={`Stake (min ${fmt(minStake)})`}
                           />
-                          {stakeNum > 0 && (
-                            <p className="text-xs text-muted mt-1">
-                              To return: {fmt(slipPayout(stakeNum, [p.odds]))} NGC
-                            </p>
-                          )}
                         </>
                       )}
 
@@ -537,7 +532,7 @@ export default function PredictPage() {
                       </p>
                     )}
                     <div className="bg-surface2 rounded-lg px-3 py-2 flex items-center justify-between">
-                      <span className="text-xs text-muted">Potential return</span>
+                      <span className="text-xs text-muted">Potential win</span>
                       <span className="text-brand font-semibold">{fmt(multiPayout)} NGC</span>
                     </div>
                   </div>
@@ -550,7 +545,7 @@ export default function PredictPage() {
                       <span>{fmt(singleTotal)} NGC</span>
                     </div>
                     <div className="bg-surface2 rounded-lg px-3 py-2 flex items-center justify-between">
-                      <span className="text-xs text-muted">Potential return (all win)</span>
+                      <span className="text-xs text-muted">Potential win (all win)</span>
                       <span className="text-brand font-semibold">{fmt(singlePayout)} NGC</span>
                     </div>
                   </div>
