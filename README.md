@@ -1,258 +1,592 @@
-# NGOAT — MVP scaffold
+# NGOAT
 
-## Free signup bonus + betting limits (added)
-- Rate: **1 NGC = $0.0005**, i.e. **2,000 NGC = 1 USDT**
-- New users get **20,000 NGC free** (= $10) on registration, issued as a
-  `SIGNUP_BONUS` ledger entry via `issueSignupBonus()` in `lib/ledger.ts`
-- Bets: **2,000–10,000 NGC** ($1–$5), enforced in
-  `app/api/predictions/route.ts` against `PlatformConfig.minBetCredits`
-  / `maxBetCredits`
-- **Wagering requirement**: the free bonus (and anything won from it)
-  can't be withdrawn until the user has staked bonus × 3 in total
-  predictions. Progress is tracked on `User.bonusWageringProgress` and
-  checked by `isWithdrawalEligible()` before any `WithdrawalRequest` is
-  created. This is the standard anti-abuse pattern real betting
-  platforms use to stop people from farming free credits with
-  throwaway accounts and cashing out immediately.
-- **Still open**: nothing currently stops one person from creating many
-  accounts to claim the bonus repeatedly. Before this goes public, add
-  email verification and/or a device/IP check at registration — the
-  `TODO` in `app/api/auth/register/route.ts` marks where.
+NGOAT is a Next.js + Prisma football prediction and NGC rewards platform with Solana wallet integration, deposits, withdrawals, staking, referrals, leaderboard features, and additional games.
 
-Ledger-first architecture: `LedgerEntry` is the only source of truth for
-balances. Never add a `balance` column to `User` — always derive it with
-`getBalance()` in `lib/ledger.ts`. Every credit/debit goes through
-`addLedgerEntry` or `debitWithCheck`, which wraps the balance check and
-insert in one DB transaction to prevent race conditions (e.g. same credits
-spent twice from two tabs).
+> **Current status:** The codebase contains the main application flows and production-oriented controls, but money-moving features should still be tested carefully on mainnet before public launch.
 
-## What's in this build (complete MVP, all wired up)
-- `prisma/schema.prisma` — full data model
-- `lib/ledger.ts`, `lib/prisma.ts`, `lib/auth.ts` — ledger logic + NextAuth (Credentials, bcrypt, JWT sessions)
-- **Auth**: `/register`, `/login`, `app/api/auth/register`, `app/api/auth/[...nextauth]`
-- **User pages**: `/` (home), `/dashboard` (balance, stats, wagering progress, activity),
-  `/predict` (upcoming matches, stake), `/buy-ngoat` (submit deposit),
-  `/withdraw` (submit withdrawal, blocked until wagering requirement met),
-  `/leaderboard`
-- **Admin**: `/admin` — approve/reject deposits, mark withdrawals paid, create matches, settle matches (all in one page)
-- **API**: deposits, predictions, matches, leaderboard, me, and the full `admin/*` set (deposits, deposits/[id]/approve, deposits/[id]/reject, withdrawals, withdrawals/[id]/pay, matches, matches/[id]/settle)
+## Core features
 
-## Known placeholders — fix before real users touch this
-- `app/buy-ngoat/page.tsx` hardcodes `DEPOSIT_WALLET = "SET_IN_ADMIN_PANEL"`.
-  There's no config API route yet to serve `PlatformConfig.depositWallet`
-  to the frontend — add `app/api/config/route.ts` (public GET, just the
-  wallet/network/rate fields) and fetch it there instead of hardcoding.
-- No admin user exists by default. After your first `prisma migrate deploy`,
-  manually set one user's `role` to `ADMIN` in the DB (Neon/Supabase both
-  have a SQL console for this) — there's no UI for promoting admins yet.
-- On-chain deposit verification is still trust-the-submitted-hash +
-  manual admin eyeballing, not automatic block-explorer verification.
-- No email verification / device check at signup — the free-bonus
-  multi-accounting risk flagged earlier is still open.
-- No rate limiting on `/api/auth/register` or `/api/predictions` yet.
+### Account & security
+- Username/email registration and login with NextAuth Credentials.
+- Password hashing with bcrypt.
+- Email verification through Resend.
+- Forgot-password and change-password flows.
+- Password-reset withdrawal hold to reduce account-takeover cash-out risk.
+- Verification-email resend cooldown.
+- Disposable/blocked email-domain controls.
+- Suspended-account support.
+- Server-side session/auth checks.
 
-## Setup
+### NGC ledger
+
+NGC balances use a **ledger-first architecture**.
+
+There is no raw `User.balance` field. Confirmed `LedgerEntry` records are the source of truth, and balance-changing operations go through the ledger helpers in `lib/ledger.ts`.
+
+This covers:
+- Signup bonuses
+- Deposits
+- Prediction stakes and rewards
+- Refunds
+- Withdrawals/redemptions
+- Staking principal and profit
+- Referrals
+- Spin the Wheel
+- Number Pick
+
+Transactions and balance checks are designed to prevent double-spending from concurrent requests.
+
+### Signup bonus
+
+By default:
+- **20,000 NGC** signup bonus
+- **1 USDT = 2,000 NGC**
+- Bonus-derived funds are not directly withdrawable.
+- The bonus has a wagering requirement before the account becomes eligible for normal withdrawal rules.
+- The original bonus is also protected by `bonusFloor`, so the bonus itself cannot simply be cashed out after meeting the wagering requirement.
+
+### Referrals
+
+Each account receives a unique referral code.
+
+A referral can be registered with:
+
+```text
+/register?ref=REFERRAL_CODE
+```
+
+The referrer receives the configured referral bonus only after the referred user makes their **first approved deposit**. This prevents referral rewards from being farmed through accounts that never bring real deposits.
+
+The default referral reward is **2,000 NGC**.
+
+## Football predictions
+
+Football fixtures are imported from **football-data.org** for:
+
+- Premier League (`PL`)
+- La Liga (`PD`)
+- Bundesliga (`BL1`)
+- Serie A (`SA`)
+- Ligue 1 (`FL1`)
+- Champions League (`CL`)
+
+The current fixture window is **21 days**.
+
+### Prediction modes
+
+The prediction API currently supports two modes:
+
+#### Singles
+Each selected match is an independent bet with its own stake.
+
+#### Multiple / accumulator
+Several matches are combined into one slip with one stake. Every selected leg must win for the multiple to win.
+
+The minimum number of legs for multiples is controlled by:
+
+```text
+PlatformConfig.minSlipLegs
+```
+
+The current database default is **5 legs**.
+
+### Markets
+
+The prediction system supports market-based selections through `lib/markets.ts`, including:
+
+- 1X2
+- Over/Under
+- Double Chance
+
+Odds are stored with the match and locked onto the prediction when it is placed. The server checks the current odds before accepting a bet; if they changed, the request is rejected with an `ODDS_CHANGED` response instead of silently using stale odds.
+
+### Automated fixtures and settlement
+
+`app/api/cron/import-fixtures` imports upcoming fixtures.
+
+`app/api/cron/settle-results` checks imported matches after kickoff and settles finished results. Cancelled/postponed/suspended fixtures can be refunded according to the settlement logic.
+
+Only fixtures with a football-data.org `externalId` are handled by the automated settlement flow. Manually created admin matches remain under admin control.
+
+### Automated odds
+
+`app/api/cron/refresh-odds` recalculates match odds from football data and the project's odds engine.
+
+The endpoint is protected by `CRON_SECRET`.
+
+If you want odds to refresh automatically on a schedule, configure an external scheduler/GitHub Action/cron service to call this endpoint. It is **not currently listed in `vercel.json`**.
+
+## Deposits
+
+The primary deposit flow is Solana wallet based.
+
+Supported deposit assets:
+
+- USDT
+- SOL
+- NGOAT
+
+The platform values SOL and NGOAT using a live Jupiter price where available, with admin-configured fallback prices if a live price cannot be obtained.
+
+### Deposit verification
+
+The on-chain deposit endpoint independently checks the submitted transaction against Solana.
+
+It verifies:
+- The transaction exists and succeeded.
+- The claiming wallet controls the wallet through a signed proof.
+- The transaction fee payer matches the claiming wallet.
+- The transfer reached the NGOAT deposit wallet.
+- The transferred asset and amount match the request.
+- The transaction hash has not already been credited.
+- The deposit meets the minimum USD-equivalent value.
+
+The database also has a unique constraint on `DepositRequest.txHash` to protect against duplicate credits during races.
+
+### Current public Solana addresses
+
+The repository currently defines:
+
+```text
+NGOAT deposit wallet:
+HjUowGjNtsx3RNy74HkCLxDtdo35o82xvkDD4qr9rfuS
+
+USDT mint:
+Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+
+NGOAT mint:
+8FX8nCzcqK93magyAjvaekPjFQFQJySKoKcd8LJupump
+```
+
+These are public blockchain addresses, not secrets. **Verify all addresses independently before moving real funds.**
+
+The default minimum deposit is **$5 USD-equivalent**.
+
+## Withdrawals
+
+Withdrawals support:
+
+- USDT
+- SOL
+- NGOAT
+
+The amount entered by the user is treated as a **USD-equivalent withdrawal value**. The admin payout process determines the actual token amount at payout time.
+
+### Withdrawal controls
+
+By default:
+- Minimum withdrawal: **$10**
+- Maximum total withdrawal per day: **$100**
+- Withdrawals can be globally enabled/disabled from admin settings.
+- A user must reach the configured lifetime approved-deposit threshold before withdrawal options unlock.
+- The signup bonus remains protected from withdrawal.
+- The first withdrawal permanently links the user's Solana wallet to the account.
+- The first withdrawal requires a wallet ownership signature.
+- The same wallet cannot be linked to another account.
+- A password reset temporarily pauses withdrawals.
+
+The withdrawal system currently creates a request and debits the user's eligible ledger balance; actual payout is handled through the admin withdrawal flow.
+
+## NGC staking
+
+Users can stake NGC for fixed terms.
+
+Default minimum:
+
+```text
+40,000 NGC
+```
+
+Available terms:
+
+- 3 months
+- 6 months
+- 1 year
+
+The configured default rate is:
+
+```text
+0.01% per day
+```
+
+The staking implementation uses **simple interest**, not daily compounding.
+
+At maturity:
+1. The principal is returned to the normal spendable balance.
+2. The profit is credited separately as `STAKE_PROFIT_RELEASE`.
+3. Staked profit can be withdrawn through the dedicated Staked Profit withdrawal option.
+
+There is no early withdrawal from an active stake.
+
+## Games
+
+The project also contains two additional NGC games.
+
+### Spin the Wheel
+
+Route:
+
+```text
+/spinthewheel
+```
+
+The game uses server-side cryptographically secure randomness.
+
+The default spin cost is:
+
+```text
+20,000 NGC
+```
+
+Landing on the `BONUS` segment grants a free spin. Free spins are tracked server-side and cannot be fabricated by the client.
+
+The game can be enabled/disabled from admin configuration.
+
+### Number Pick
+
+Route:
+
+```text
+/numberpick
+```
+
+Players select **3 distinct numbers** from the configured range.
+
+The default range is:
+
+```text
+1–20
+```
+
+Each user can enter once per weekly draw.
+
+Default minimum stake:
+
+```text
+10,000 NGC
+```
+
+Payout tiers are based on how many of the 3 selected numbers match the winning numbers:
+
+- 3/3 — Jackpot
+- 2/3 — Good payout
+- 1/3 — Small payout
+- 0/3 — No payout
+
+Draw settlement is handled by:
+
+```text
+/api/cron/settle-number-pick
+```
+
+The game has both a global games switch and an individual Number Pick switch.
+
+> These games are currently accessible by direct routes and are not treated as the main football-prediction navigation flow.
+
+## Leaderboard
+
+The leaderboard tracks prediction rewards and supports a reset point controlled by:
+
+```text
+PlatformConfig.leaderboardResetAt
+```
+
+Resetting the leaderboard does **not** remove users' actual NGC balances. It only changes the period used for ranking.
+
+## Admin panel
+
+Admin functionality is available at:
+
+```text
+/admin
+```
+
+The admin system includes controls for:
+
+- Users
+- Deposits
+- Withdrawals
+- Matches
+- Predictions
+- Odds
+- Ledger entries
+- Stakes
+- Leaderboard reset
+- Number Pick draws
+- Game controls
+- Platform configuration
+- Balance migration/cutover
+- Slip reconciliation
+
+Admin access is controlled through the `Role.ADMIN` database role.
+
+There is no public admin-registration flow. An initial admin account must be promoted directly in the database.
+
+## Automated jobs
+
+### Vercel Cron
+
+`vercel.json` currently schedules:
+
+```text
+/api/cron/import-fixtures
+0 6 * * *
+
+/api/cron/settle-number-pick
+5 0 * * *
+```
+
+### GitHub Actions
+
+`.github/workflows/settle-results.yml` runs every 15 minutes and calls:
+
+```text
+/api/cron/settle-results
+/api/cron/release-stakes
+```
+
+This is used because frequent execution is not available through a Vercel Hobby cron schedule.
+
+All cron endpoints require:
+
+```text
+Authorization: Bearer <CRON_SECRET>
+```
+
+## Project structure
+
+```text
+app/
+├── api/
+│   ├── auth/
+│   ├── admin/
+│   ├── cron/
+│   ├── deposits/
+│   ├── predictions/
+│   ├── games/
+│   ├── stakes/
+│   ├── withdrawals/
+│   ├── leaderboard/
+│   └── ...
+├── admin/
+├── dashboard/
+├── predict/
+├── predictions/
+├── my-predictions/
+├── stake/
+├── buy-ngoat/
+├── withdraw/
+├── leaderboard/
+├── spinthewheel/
+├── numberpick/
+├── login/
+├── register/
+└── ...
+
+components/
+lib/
+├── ledger.ts
+├── settlement.ts
+├── staking.ts
+├── games.ts
+├── markets.ts
+├── oddsEngine.ts
+├── oddsModel.ts
+├── footballData.ts
+├── assetPricing.ts
+├── security.ts
+├── walletProof.ts
+├── walletMessages.ts
+├── auth.ts
+├── authTokens.ts
+├── email.ts
+└── ...
+
+prisma/
+└── schema.prisma
+```
+
+## Tech stack
+
+- Next.js 14
+- React 18
+- TypeScript
+- Prisma 5
+- PostgreSQL
+- NextAuth
+- bcryptjs
+- Tailwind CSS
+- Solana Web3.js
+- Solana SPL Token
+- Solana Wallet Adapter
+- football-data.org
+- Jupiter price API
+- Resend
+- Vercel
+- GitHub Actions
+
+## Environment variables
+
+Create a `.env` file locally.
+
+At minimum:
+
+```env
+DATABASE_URL="your-postgres-connection"
+DIRECT_URL="your-direct-postgres-connection"
+NEXTAUTH_SECRET="your-nextauth-secret"
+NEXTAUTH_URL="http://localhost:3000"
+
+FOOTBALL_DATA_API_KEY="your-football-data-api-key"
+CRON_SECRET="your-cron-secret"
+
+RESEND_API_KEY="your-resend-api-key"
+RESEND_FROM_EMAIL="verify@your-verified-domain.com"
+
+NEXT_PUBLIC_SOLANA_RPC_ENDPOINT="your-solana-rpc-endpoint"
+```
+
+### Database URLs
+
+`DATABASE_URL` is used by the application.
+
+`DIRECT_URL` is used by Prisma migrations when a direct/non-pooled PostgreSQL connection is required.
+
+Neon and Supabase PostgreSQL can both be used, provided the connection settings are appropriate.
+
+### Solana RPC
+
+The project can fall back to Solana's public RPC, but a dedicated RPC provider is strongly recommended for production deposit verification.
+
+The RPC endpoint may contain a provider key, so **do not commit secrets to the repository**.
+
+## Local development
+
+Install dependencies:
+
 ```bash
 npm install
-# set DATABASE_URL in .env (Neon/Supabase Postgres works well for fast setup)
-# set NEXTAUTH_SECRET (openssl rand -base64 32) and NEXTAUTH_URL in .env
-npx prisma migrate dev --name init
+```
+
+Generate Prisma client:
+
+```bash
+npx prisma generate
+```
+
+Run migrations:
+
+```bash
+npx prisma migrate dev
+```
+
+Start the development server:
+
+```bash
 npm run dev
 ```
 
-## Deploying
-1. Push this repo to GitHub, import into Vercel (auto-detects Next.js)
-2. Add env vars in Vercel: `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`
-3. Run `npx prisma migrate deploy` locally against the production `DATABASE_URL` (once, and again after any schema change)
-4. Promote your own account to `ADMIN` via the DB console
-5. Every `git push` after that redeploys automatically
-- Football-data API auto-import (enter matches/results manually for now)
-- On-chain deposit verification (trust submitted tx hash + manual admin
-  check against a block explorer for now)
-- Notifications, 2FA, audit logs, WalletConnect
+The app will normally be available at:
 
-## Automated football data (added)
-Matches now import and settle themselves — you don't have to create or
-settle them by hand anymore, except for anything you create manually
-in the admin panel (which always stays manual on purpose).
-
-**How it works:**
-- `app/api/cron/import-fixtures` — pulls upcoming fixtures from
-  football-data.org for PL, La Liga, Bundesliga, Serie A, Ligue 1, and
-  Champions League, and creates `Match` rows automatically. Runs daily
-  via Vercel Cron (`vercel.json`) — Hobby plan caps cron at once/day.
-- `app/api/cron/settle-results` — checks auto-imported matches whose
-  kickoff has passed; if the provider says `FINISHED`, settles it and
-  pays winners; if `POSTPONED`/`SUSPENDED`/`CANCELLED`, refunds all
-  stakes instead of leaving them stuck. Runs every 15 minutes via a
-  GitHub Actions workflow (`.github/workflows/settle-results.yml`),
-  since Vercel's free tier can't run cron that often.
-- Only matches with an `externalId` (i.e. ones the system imported
-  itself) are ever touched by these — anything you add by hand in
-  `/admin` has no `externalId` and always needs manual settlement.
-  This keeps auto-settlement scoped to data our own import created,
-  not open-ended.
-
-**Setup:**
-1. Get a free API key at https://www.football-data.org/client/register
-   (no card required)
-2. Add to Vercel env vars: `FOOTBALL_DATA_API_KEY` (the key from step 1)
-   and `CRON_SECRET` (any random string — `openssl rand -hex 20` works)
-3. In your GitHub repo: Settings → Secrets and variables → Actions →
-   add `NGOAT_URL` (your deployed Vercel URL, no trailing slash) and
-   `CRON_SECRET` (the exact same value as in Vercel)
-4. Push — the GitHub Action starts polling automatically once it's on
-   the default branch. Vercel's daily cron picks up on its own schedule.
-5. Test manually before waiting a day: visit
-   `https://your-app.vercel.app/api/cron/import-fixtures` with an
-   `Authorization: Bearer <CRON_SECRET>` header (Postman, curl, or the
-   "Run workflow" button on the GitHub Action for settle-results) to
-   confirm it works rather than waiting on the schedule.
-
-**Still worth knowing:** football-data.org's free tier is 10
-requests/minute — fine for this usage, but if you add many more
-competitions later you may need to space out the import loop or
-upgrade their plan.
-
-## Major update: accumulator predictions, staking, stricter withdrawals, wallet connect
-
-**Predictions are now accumulator-only.** A single-match straight bet no
-longer exists — every prediction is a "slip" of at least 3 matches
-(`PlatformConfig.minSlipLegs`), one stake for the whole slip, and ALL
-legs must win for it to pay out. Reward = `stake x rewardMultiplier ^
-(number of winning legs)`, so more legs = more risk = more reward. A
-leg that gets voided (match postponed/cancelled) is dropped from the
-requirement rather than failing the slip — if every leg in a slip ends
-up voided, the stake is refunded. See `lib/settlement.ts` for the full
-logic.
-
-**NGC staking** (`/stake`, `app/api/stakes`): lock at least 40,000 NGC
-for 3 months, 6 months, or 1 year. Grows 0.1%/day (compounding), no
-early withdrawal — the full amount releases automatically at maturity
-via `app/api/cron/release-stakes`, now polled by the same GitHub Action
-that checks football results every 15 minutes.
-
-**Withdrawals are stricter now:**
-- The original signup bonus can **never** be withdrawn, even after the
-  wagering requirement is met — only balance earned on top of it
-  (`User.bonusFloor`, see `getWithdrawableBalance()` in `lib/ledger.ts`).
-- $5 minimum, $100 maximum per calendar day
-  (`PlatformConfig.minWithdrawalUsdt` / `maxDailyWithdrawalUsdt`).
-
-**Wallet connect (Solana) — partially built, needs your input before
-it's fully live:**
-- ✅ Done: wallet connection UI (`components/SolanaWalletProvider.tsx`,
-  the Connect button on `/buy-ngoat`) — supports any Wallet Standard
-  wallet (Phantom, Solflare, Trust Wallet, Backpack, etc.) automatically.
-- ❌ Not built yet: actually constructing and sending a USDT (SPL
-  token) transfer from the connected wallet, and verifying it on-chain
-  to auto-credit NGC. This needs:
-  1. Your real Solana deposit wallet address
-  2. A Solana RPC provider (the free public endpoint used by default
-     is too rate-limited for real deposit verification — get a key from
-     Helius, QuickNode, or similar, then set
-     `NEXT_PUBLIC_SOLANA_RPC_ENDPOINT` in your env vars)
-  3. The USDT SPL-token mint address on Solana (already has a config
-     slot: `PlatformConfig.solanaUsdtMint`)
-
-  The manual tx-hash-and-admin-approval flow on `/buy-ngoat` still
-  works today and is the current real path until the above is wired
-  up — don't remove it.
-
-**Migration needed:**
-```powershell
-npx prisma migrate dev --name accumulators_staking_wallet_connect
+```text
+http://localhost:3000
 ```
 
-**New dependency install needed** (wallet adapter packages):
-```powershell
-npm install
+## Production deployment
+
+### Vercel
+
+1. Push the repository to GitHub.
+2. Import the repository into Vercel.
+3. Add all required environment variables.
+4. Make sure the production PostgreSQL database is configured.
+5. Run production migrations:
+
+```bash
+npx prisma migrate deploy
 ```
 
-## Wallet-connect deposits are now LIVE (real on-chain flow)
+6. Promote an account to `ADMIN` directly in the database.
+7. Confirm the required cron jobs and GitHub Action secrets are configured.
+8. Test deposits, predictions, settlement, staking maturity, and withdrawals before opening the platform to real users.
 
-The manual tx-hash-and-admin-approval form on `/buy-ngoat` has been
-**removed entirely**. The flow is now:
+### GitHub Actions secrets
 
-1. User connects a Solana wallet (Phantom, Solflare, Trust Wallet,
-   Backpack, or any other Wallet Standard wallet — auto-detected).
-2. They enter a USDT amount and click "Buy NGOAT with USDT."
-3. The app builds and sends a real SPL-token USDT transfer from their
-   wallet to the platform's deposit wallet.
-4. Once confirmed on-chain, `app/api/deposits/onchain/route.ts`
-   independently verifies the transaction against Solana itself
-   (not just trusting what the client claims) and credits NGC
-   automatically — no admin approval step in this path anymore.
+The settlement workflow expects:
 
-**Config** (`lib/solanaConfig.ts`):
-- Deposit wallet: `9hKZyLjGB77gzVB1sajaphpPe5r9RHi1yFLYWHm9eyj`
-- USDT SPL mint: `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB`
-  (verify this against Solscan/CoinGecko before real money moves
-  through it — it's correct as of when this was written, but confirm
-  independently since this is exactly the kind of value where being
-  wrong is expensive)
-
-**Required env var — set this in `.env` locally AND in Vercel:**
+```text
+NGOAT_URL
+CRON_SECRET
 ```
-NEXT_PUBLIC_SOLANA_RPC_ENDPOINT="https://mainnet.helius-rpc.com/?api-key=YOUR_KEY"
+
+`NGOAT_URL` should be the deployed app URL without a trailing slash.
+
+`CRON_SECRET` must exactly match the Vercel environment variable.
+
+## Important production checklist
+
+Before public launch:
+
+- [ ] Verify the Solana deposit wallet.
+- [ ] Verify the USDT mint address.
+- [ ] Verify the NGOAT mint address.
+- [ ] Use a reliable Solana RPC provider.
+- [ ] Confirm Resend domain verification and email delivery.
+- [ ] Confirm `NEXTAUTH_URL` and `NEXTAUTH_SECRET`.
+- [ ] Run all Prisma migrations against production.
+- [ ] Create/promote the initial admin account.
+- [ ] Review platform rates and fallback asset prices.
+- [ ] Review minimum deposits, bets, withdrawals and daily limits.
+- [ ] Test a small real Solana deposit.
+- [ ] Test duplicate transaction protection.
+- [ ] Test wallet ownership signatures.
+- [ ] Test a complete prediction settlement.
+- [ ] Test cancelled/postponed match handling.
+- [ ] Test stake maturity and profit release.
+- [ ] Test withdrawal locking and wallet linking.
+- [ ] Test password-reset withdrawal hold.
+- [ ] Test referral crediting after the first approved deposit.
+- [ ] Confirm GitHub Actions are running.
+- [ ] Confirm Vercel Cron jobs are running.
+- [ ] Configure a scheduler for odds refresh if automatic odds updates are required.
+- [ ] Keep the admin account and database credentials secure.
+
+## Important architecture notes
+
+### Never add a raw balance field
+
+Use the ledger helpers instead:
+
+```text
+lib/ledger.ts
 ```
-This is used both client-side (building/sending the transaction) and
-server-side (verifying it) — same variable, both places.
 
-**Security note:** because this key is used client-side, it's visible
-to anyone who inspects the site's network requests or JS bundle — that
-part is unavoidable for a wallet-connect app using a provider RPC
-directly. Recommended: in Helius's dashboard, restrict this key to your
-site's domain so it can't be freely reused elsewhere if someone copies
-it.
+Do not introduce a separate `User.balance` field unless the entire accounting model is deliberately redesigned.
 
-**Not tested against a live network** — this was written using the
-standard `@solana/web3.js` + `@solana/spl-token` patterns but couldn't
-be run against real Solana infrastructure while building it. Test with
-a small real transaction ($5, using your own wallet) once deployed,
-before trusting it with other users' money.
+### Never trust client-supplied odds
 
-**Legacy manual-deposit backend still exists** (`app/api/deposits/route.ts`,
-admin approve/reject) for record-keeping/edge cases, but nothing in the
-UI calls it anymore — the on-chain flow is now the only real path.
+The prediction API reads the server-side odds stored on the match and rejects stale odds.
 
-## New migration needed (adds a unique constraint on DepositRequest.txHash)
-```powershell
-npx prisma migrate dev --name onchain_deposits
+### Never trust client-supplied wallet ownership
+
+Deposits and first withdrawals require signed wallet proofs.
+
+### Do not expose private configuration through public APIs
+
+`/api/config` only exposes client-safe configuration. Sensitive/admin configuration belongs behind the admin API.
+
+## Useful commands
+
+```bash
+npm run dev
+npm run build
+npm run start
+
+npx prisma generate
+npx prisma migrate dev
+npx prisma migrate deploy
 ```
-(Run this AFTER the earlier `accumulators_staking_wallet_connect`
-migration if you haven't run that one yet — do both, in order.)
 
-## Email verification (Resend) + referrals + one-wallet-per-account
+## License
 
-**Email verification** — registration no longer auto-logs in. It sends
-a verification link (via Resend) and login is blocked
-(`EMAIL_NOT_VERIFIED`) until that link is clicked. A resend option is
-on the login page for expired/lost links.
-
-**Required env vars** (set in `.env` and Vercel):
-```
-RESEND_API_KEY="your Resend API key"
-RESEND_FROM_EMAIL="verify@ngoat.xyz"   # must be on a domain verified in Resend
-```
-Until both are set, registration still works, but no email actually
-sends (logged as a warning server-side) — useful for local dev before
-the domain is fully verified.
-
-**Referrals** — every user gets a unique `referralCode`
-(`/register?ref=CODE` pre-fills it). The referrer gets 2,000 NGC
-(`PlatformConfig.referralBonusCredits`) once the referred user verifies
-their email — not at raw signup, so it's tied to the same anti-abuse
-gate. Shareable link + running count shown on `/dashboard`.
-
-**One wallet per account** — enforced at first withdrawal, not signup
-(keeps the free bonus frictionless). `/withdraw` now uses your actually
-connected Solana wallet instead of a typed-in address. The first wallet
-you withdraw with gets permanently linked (`User.walletAddress`,
-DB-unique) — every withdrawal after that must use that same wallet, and
-no other account can ever link it.
-
-## New migration needed
-```powershell
-npx prisma migrate dev --name email_verification_referrals_wallet_link
-```
+This project is currently maintained as a private NGOAT application. 
